@@ -7,9 +7,9 @@
 - [x] Add PostgreSQL + Redis Compose services
 - [x] Add Alembic
 - [x] Shared environment/config
-- [ ] CI lint/typecheck/test
+- [x] CI lint/typecheck/test
 - [ ] Authentication/session foundation
-- [ ] AuditEvent model
+- [x] AuditEvent model
 
 ## P0 Vertical slice
 - [x] Document upload endpoint

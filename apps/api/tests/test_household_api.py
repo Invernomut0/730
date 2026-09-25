@@ -1,11 +1,11 @@
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
 from app.main import app
-from app.models.entities import Household, HouseholdMember
+from app.models.entities import AuditEvent, Household, HouseholdMember
 
 
 def test_create_and_list_household_member_against_postgres() -> None:
@@ -41,9 +41,24 @@ def test_create_and_list_household_member_against_postgres() -> None:
                     "relationship_type": "daughter",
                 }
             ]
+            database = SessionLocal()
+            try:
+                actions = set(
+                    database.scalars(
+                        select(AuditEvent.action).where(
+                            AuditEvent.entity_id.in_([household_id, member_id])
+                        )
+                    )
+                )
+                assert actions == {"household.created", "household_member.created"}
+            finally:
+                database.close()
     finally:
         database = SessionLocal()
         try:
+            database.execute(
+                delete(AuditEvent).where(AuditEvent.entity_id.in_([item for item in (household_id, member_id) if item]))
+            )
             if member_id:
                 database.execute(delete(HouseholdMember).where(HouseholdMember.id == member_id))
             if household_id:

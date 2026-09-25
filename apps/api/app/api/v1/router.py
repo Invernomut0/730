@@ -41,6 +41,7 @@ from app.schemas.api import (
 )
 from app.services.insurance import evaluate_specialist_and_diagnostics
 from app.services.identity import normalize_fiscal_code
+from app.services.audit import record_audit
 from app.services.storage import ImmutableStorage, UnsupportedDocument
 
 router = APIRouter(prefix="/api/v1")
@@ -113,6 +114,8 @@ async def upload_document(
         duplicate_of_id=existing.id if existing else None,
     )
     db.add(document)
+    db.flush()
+    record_audit(db, "document.uploaded", "Document", document.id, {"mime_type": document.mime_type})
     db.commit()
     db.refresh(document)
     try:
@@ -133,6 +136,8 @@ def list_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
 def create_household(payload: HouseholdCreate, db: Session = Depends(get_db)) -> dict[str, str]:
     household = Household(name=payload.name)
     db.add(household)
+    db.flush()
+    record_audit(db, "household.created", "Household", household.id)
     db.commit()
     return {"id": str(household.id), "name": household.name}
 
@@ -169,6 +174,8 @@ def create_member(payload: MemberCreate, db: Session = Depends(get_db)) -> dict[
         raise HTTPException(status_code=422, detail=str(error)) from error
     member = HouseholdMember(**payload.model_dump(exclude={"fiscal_code"}), fiscal_code=fiscal_code)
     db.add(member)
+    db.flush()
+    record_audit(db, "household_member.created", "HouseholdMember", member.id)
     db.commit()
     return {"id": str(member.id), "name": f"{member.first_name} {member.last_name}"}
 
@@ -230,5 +237,6 @@ def resolve_review_task(task_id: UUID, payload: ReviewResolution, db: Session = 
     task.status = "RESOLVED"
     task.resolution = payload.resolution
     task.resolved_at = datetime.now(UTC)
+    record_audit(db, "review.resolved", "ReviewTask", task.id)
     db.commit()
     return ReviewResponse(id=task.id, type=task.type.value, entity_type=task.entity_type, entity_id=task.entity_id, status=task.status, priority=task.priority, context=task.context)

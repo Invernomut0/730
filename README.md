@@ -82,6 +82,11 @@ the household/member API flow against PostgreSQL with cleanup. Run it with
 `docker compose run --rm api pytest -q`; lint runs with
 `docker compose run --rm api ruff check .`.
 
+GitHub Actions runs the same Compose configuration, full container build,
+PostgreSQL-backed tests and Ruff checks on each push and pull request.
+Material actions create privacy-preserving audit events that store only opaque
+entity identifiers and operational metadata.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

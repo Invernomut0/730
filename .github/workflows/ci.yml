@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare local-only configuration
+        run: cp .env.example .env
+      - name: Validate Compose configuration
+        run: docker compose config
+      - name: Build services
+        run: docker compose build
+      - name: Start test dependencies
+        run: docker compose up -d postgres redis
+      - name: Run API tests
+        run: docker compose run --rm api pytest -q
+      - name: Run API lint
+        run: docker compose run --rm api ruff check .
+      - name: Stop services
+        if: always()
+        run: docker compose down --volumes --remove-orphans
