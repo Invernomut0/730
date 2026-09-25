@@ -90,7 +90,7 @@
 - [x] fallback policy
 - [x] prompt registry
 - [x] AIExecution audit
-- [ ] embedding provider
+- [x] embedding provider
 - [ ] calibration dataset
 - [ ] evaluate-rizzo command
 

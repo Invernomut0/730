@@ -9,6 +9,12 @@ Default: Qwen3-VL-8B. Use when native text/OCR is insufficient or layout/image u
 ## Embeddings
 Configurable through LM Studio. Embeddings support candidate retrieval; never use them alone to confirm links.
 
+Set `LMSTUDIO_EMBEDDING_MODEL` to a locally loaded OpenAI-compatible embedding
+model. HealthDocs sends a non-empty batch to `POST /embeddings` and rejects
+responses with missing, non-finite, duplicated, or dimensionally inconsistent
+vectors. The provider keeps input text in memory only for the request and does
+not emit it to application logs.
+
 ## Rizzo Flow
 Preferred for fast typed decisions such as document type, diagnosis presence, likely coverage category, same-event likelihood and review requirement.
 

@@ -7,7 +7,7 @@ from starlette.responses import JSONResponse, Response
 from app.api.v1.router import router as api_router
 from app.core.config import get_settings
 
-app = FastAPI(title="HealthDocs API", version="0.1.19")
+app = FastAPI(title="HealthDocs API", version="0.1.20")
 settings = get_settings()
 app.add_middleware(
 	SessionMiddleware,

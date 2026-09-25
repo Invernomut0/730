@@ -33,6 +33,11 @@ responses fall back to the configured local LM Studio model. Each provider
 attempt is recorded as an `AIExecution` with opaque input hash, prompt/schema
 versions, status, and duration—never document content.
 
+Set `LMSTUDIO_EMBEDDING_MODEL` only to a model served locally by LM Studio.
+Embedding responses are validated for finite, consistently sized vectors and
+are reserved for candidate retrieval; they cannot independently confirm a
+medical-document link.
+
 ## AI stack
 - LM Studio via OpenAI-compatible API
 - configured primary model: `qwen3.8-27b-abliterated-mtplx-optimized-speed`
