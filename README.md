@@ -29,7 +29,7 @@ AI is deterministic-first: rules and exact identifiers before Rizzo Flow, embedd
 
 ## AI stack
 - LM Studio via OpenAI-compatible API
-- recommended primary model: Qwen3.5-27B
+- configured primary model: `qwen3.8-27b-abliterated-mtplx-optimized-speed`
 - recommended vision model: Qwen3-VL-8B
 - configurable embedding model
 - Rizzo Flow for fast typed decisions
