@@ -1,6 +1,10 @@
+from pathlib import Path
+
+import fitz
+
 from app.core.config import Settings
 from app.models.entities import DocumentType
-from app.services.extraction import ExtractedPage, classify_document, text_is_insufficient
+from app.services.extraction import ExtractedPage, classify_document, extract_pdf_text, text_is_insufficient
 from app.schemas.extraction import InvoiceExtraction, PrescriptionExtraction
 
 
@@ -23,6 +27,25 @@ def test_invoice_markers_override_incidental_quota_ricetta_wording() -> None:
     """
 
     assert classify_document(text) == DocumentType.INVOICE
+
+
+def test_native_pdf_extraction_persists_normalized_word_boxes(tmp_path: Path) -> None:
+    path = tmp_path / "clinical-report.pdf"
+    pdf = fitz.open()
+    page = pdf.new_page(width=200, height=100)
+    page.insert_text((20, 30), "Humanitas Report")
+    pdf.save(path)
+    pdf.close()
+
+    extracted = extract_pdf_text(path)
+
+    words = extracted[0].blocks["words"] if extracted[0].blocks else []
+    humanitas = next(word for word in words if word["text"] == "Humanitas")
+    assert extracted[0].blocks and extracted[0].blocks["coordinate_space"] == "normalized"
+    assert 0 < humanitas["left"] < 1
+    assert 0 < humanitas["top"] < 1
+    assert 0 < humanitas["width"] < 1
+    assert 0 < humanitas["height"] < 1
 
 
 def test_local_llm_timeout_has_a_safe_default_for_large_models() -> None:

@@ -201,12 +201,13 @@ first PDF page or raster original. It is available at
 
 ## Document viewer and archive names
 
-Tesseract OCR persists word-level bounding boxes on each document page. The
-viewer loads page data from `GET /api/v1/documents/{document_id}/pages` and
-shows the recognized terms alongside the thumbnail. After processing, each
-document receives a deterministic logical name (`date_type_hash.ext`) while
-retaining the immutable original and source filename. Exact SHA-256 duplicates
-are linked and are not processed again during re-scans.
+Native PDF extraction and Tesseract OCR persist normalized word-level bounding
+boxes on each document page. The viewer loads page data from
+`GET /api/v1/documents/{document_id}/pages` and overlays those local coordinates
+on the thumbnail. After processing, each document receives a deterministic
+logical name (`date_type_hash.ext`) while retaining the immutable original and
+source filename. Exact SHA-256 duplicates are linked and are not processed again
+during re-scans.
 
 ## Pharmacy
 

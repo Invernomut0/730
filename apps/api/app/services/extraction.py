@@ -38,10 +38,33 @@ class ExtractedPage:
 
 
 def extract_pdf_text(path: Path) -> list[ExtractedPage]:
-    """Extract native PDF text; OCR belongs to a future provider implementation."""
+    """Extract native PDF text with normalized word boxes for the document viewer."""
     try:
         with fitz.open(path) as pdf:
-            return [ExtractedPage(index + 1, page.get_text("text").strip(), 1.0) for index, page in enumerate(pdf)]
+            pages: list[ExtractedPage] = []
+            for index, page in enumerate(pdf, start=1):
+                page_width = max(page.rect.width, 1)
+                page_height = max(page.rect.height, 1)
+                words = [
+                    {
+                        "text": text,
+                        "left": x0 / page_width,
+                        "top": y0 / page_height,
+                        "width": (x1 - x0) / page_width,
+                        "height": (y1 - y0) / page_height,
+                    }
+                    for x0, y0, x1, y1, text, *_ in page.get_text("words")
+                    if text.strip()
+                ]
+                pages.append(
+                    ExtractedPage(
+                        index,
+                        page.get_text("text").strip(),
+                        1.0,
+                        {"coordinate_space": "normalized", "words": words},
+                    )
+                )
+            return pages
     except (fitz.FileDataError, RuntimeError) as error:
         raise ExtractionFailed("PDF text extraction failed.") from error
 

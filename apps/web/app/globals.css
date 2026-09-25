@@ -56,7 +56,10 @@ input:hover, select:hover { border-color: #a79888; }
 .document-state { display: inline-flex; width: fit-content; padding: 0.3rem 0.5rem; color: var(--navy); background: var(--sage); border-radius: 999px; }
 .empty-state { padding: 2.3rem; color: var(--muted); }
 .viewer { display: grid; grid-template-columns: minmax(13rem, 0.75fr) minmax(0, 1.25fr); gap: 1.4rem; margin-top: 1rem; padding: 1.4rem; }
-.viewer-preview { width: 100%; max-height: 31rem; object-fit: contain; background: #eae4da; }
+.viewer-preview-wrap { position: relative; width: 100%; max-height: 31rem; overflow: hidden; background: #eae4da; }
+.viewer-preview { display: block; width: 100%; max-height: 31rem; object-fit: contain; background: #eae4da; }
+.word-box { position: absolute; box-sizing: border-box; border: 1px solid rgba(217, 91, 67, 0.5); background: rgba(244, 179, 128, 0.13); pointer-events: none; }
+.viewer-preview-wrap:hover .word-box { border-color: rgba(217, 91, 67, 0.9); background: rgba(244, 179, 128, 0.25); }
 .viewer-copy p { max-height: 7rem; overflow: auto; color: var(--muted); }
 .viewer-copy pre { max-height: 20rem; overflow: auto; padding: 1rem; color: #d8ead9; background: var(--navy-deep); font-size: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from PIL import Image
 
 class OCRFailed(RuntimeError):
     """Raised when the configured local OCR engine cannot extract text."""
@@ -43,10 +44,22 @@ class TesseractOCRProvider:
             )
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
             raise OCRFailed("Local Tesseract OCR failed.") from error
+        with Image.open(image_path) as image:
+            image_width, image_height = image.size
         rows = csv.DictReader(result.stdout.splitlines(), delimiter="\t")
         words = [
-            {"text": row["text"].strip(), "left": int(row["left"]), "top": int(row["top"]), "width": int(row["width"]), "height": int(row["height"]), "confidence": float(row["conf"])}
+            {
+                "text": row["text"].strip(),
+                "left": int(row["left"]) / image_width,
+                "top": int(row["top"]) / image_height,
+                "width": int(row["width"]) / image_width,
+                "height": int(row["height"]) / image_height,
+                "confidence": float(row["conf"]),
+            }
             for row in rows
             if row.get("text", "").strip() and row.get("conf", "-1") != "-1"
         ]
-        return OCRResult(text=" ".join(str(word["text"]) for word in words), blocks={"words": words})
+        return OCRResult(
+            text=" ".join(str(word["text"]) for word in words),
+            blocks={"coordinate_space": "normalized", "words": words},
+        )
