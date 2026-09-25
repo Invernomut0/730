@@ -1,6 +1,7 @@
 """Public API schemas for the first vertical slice."""
 
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -113,3 +114,21 @@ class InsuranceResponse(BaseModel):
     evidence: list[str]
     missing_documents: list[str]
     warnings: list[str]
+
+
+class PharmacyReceiptCreate(BaseModel):
+    document_id: UUID
+    payer_id: UUID | None = None
+    receipt_date: date | None = None
+    total_amount: Decimal | None = None
+
+
+class ReceiptLineCreate(BaseModel):
+    description: str = Field(min_length=1, max_length=255)
+    amount: Decimal | None = None
+    aic_text: str | None = Field(default=None, max_length=64)
+    patient_id: UUID | None = None
+
+
+class MixedAllocation(BaseModel):
+    allocations: dict[UUID, UUID]

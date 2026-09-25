@@ -23,6 +23,7 @@ from app.models.entities import (
     Household,
     HouseholdMember,
     MedicalEvent,
+    PharmacyReceipt,
     Prescription,
     ReviewTask,
 )
@@ -41,6 +42,9 @@ from app.schemas.api import (
     ReviewResolution,
     ReviewResponse,
     UploadResponse,
+    PharmacyReceiptCreate,
+    ReceiptLineCreate,
+    MixedAllocation,
 )
 from app.services.insurance import evaluate_specialist_and_diagnostics
 from app.services.identity import normalize_fiscal_code
@@ -48,6 +52,7 @@ from app.services.audit import record_audit
 from app.core.security import verify_password
 from app.services.storage import ImmutableStorage, UnsupportedDocument
 from app.services.thumbnails import thumbnail_path
+from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aifa_csv, match_receipt_lines
 
 router = APIRouter(prefix="/api/v1")
 
@@ -183,6 +188,56 @@ def document_pages(document_id: UUID, db: Session = Depends(get_db)) -> list[dic
         {"page_number": page.page_number, "text": page.text or "", "source": page.source, "confidence": page.confidence, "blocks": page.blocks}
         for page in db.scalars(select(DocumentPage).where(DocumentPage.document_id == document_id).order_by(DocumentPage.page_number))
     ]
+
+
+@router.post("/pharmacy/catalog/import")
+def import_pharmacy_catalog(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> dict[str, int]:
+    """Import the operator-provided local AIFA-compatible catalog CSV."""
+    if not settings.aifa_catalog_path.is_file():
+        raise HTTPException(status_code=404, detail="Local AIFA catalog CSV is not available.")
+    count = import_aifa_csv(db, settings.aifa_catalog_path, datetime.now(UTC).date().isoformat())
+    return {"imported": count}
+
+
+@router.post("/pharmacy/receipts", status_code=status.HTTP_201_CREATED)
+def create_pharmacy_receipt(payload: PharmacyReceiptCreate, db: Session = Depends(get_db)) -> dict[str, str]:
+    """Create a pharmacy receipt linked to an immutable document."""
+    if db.get(Document, payload.document_id) is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    receipt = PharmacyReceipt(**payload.model_dump())
+    db.add(receipt)
+    db.flush()
+    record_audit(db, "pharmacy_receipt.created", "PharmacyReceipt", receipt.id)
+    db.commit()
+    return {"id": str(receipt.id)}
+
+
+@router.post("/pharmacy/receipts/{receipt_id}/lines", status_code=status.HTTP_201_CREATED)
+def create_receipt_line(receipt_id: UUID, payload: ReceiptLineCreate, db: Session = Depends(get_db)) -> dict[str, object]:
+    receipt = db.get(PharmacyReceipt, receipt_id)
+    if receipt is None:
+        raise HTTPException(status_code=404, detail="Pharmacy receipt not found.")
+    line = add_receipt_line(db, receipt, payload.description, payload.amount, payload.aic_text, payload.patient_id)
+    db.flush()
+    record_audit(db, "receipt_line.created", "ReceiptLine", line.id, {"aic_validated": line.aic_validated})
+    db.commit()
+    return {"id": str(line.id), "aic": line.aic, "aic_validated": line.aic_validated}
+
+
+@router.post("/pharmacy/receipts/{receipt_id}/match")
+def match_pharmacy_receipt(receipt_id: UUID, db: Session = Depends(get_db)) -> dict[str, int]:
+    if db.get(PharmacyReceipt, receipt_id) is None:
+        raise HTTPException(status_code=404, detail="Pharmacy receipt not found.")
+    return {"matched": match_receipt_lines(db, receipt_id)}
+
+
+@router.post("/pharmacy/receipts/{receipt_id}/allocate")
+def allocate_pharmacy_receipt(receipt_id: UUID, payload: MixedAllocation, db: Session = Depends(get_db)) -> dict[str, object]:
+    try:
+        result = allocate_receipt(db, receipt_id, payload.allocations)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"allocated_amount": str(result.allocated_amount), "review_required": result.review_required}
 
 
 @router.post("/households", status_code=status.HTTP_201_CREATED)

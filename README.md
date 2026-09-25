@@ -121,6 +121,16 @@ document receives a deterministic logical name (`date_type_hash.ext`) while
 retaining the immutable original and source filename. Exact SHA-256 duplicates
 are linked and are not processed again during re-scans.
 
+## Pharmacy
+
+Pharmacy receipts are represented as atomic `ReceiptLine` records with distinct
+patient and payer fields. The local AIFA-compatible CSV at `AIFA_CATALOG_PATH`
+(default `/data/aifa/catalog.csv`) can be imported through
+`POST /api/v1/pharmacy/catalog/import` and is refreshed weekly by the worker.
+Nine-digit AIC values are validated against that catalog. Receipt-line matching
+uses AIC first, then a conservative medicine-name fallback; unresolved or
+patient/payer-conflicting lines create review tasks rather than assumptions.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

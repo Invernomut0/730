@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     auto_confirm_threshold: float = Field(default=0.95, ge=0, le=1)
     suggest_threshold: float = Field(default=0.75, ge=0, le=1)
     aifa_update_interval_days: int = Field(default=7, gt=0)
+    aifa_catalog_path: Path = Path("/data/aifa/catalog.csv")
 
     @property
     def originals_root(self) -> Path:

@@ -27,6 +27,7 @@ from app.services.storage import UnsupportedDocument
 from app.services.structuring import structure_document
 from app.services.thumbnails import generate_thumbnail, thumbnail_path
 from app.services.watched_directory import StableFileTracker
+from app.services.pharmacy import import_aifa_csv
 
 _stable_files = StableFileTracker()
 
@@ -116,9 +117,21 @@ async def scan_watch_directory(_context: dict[str, object]) -> None:
             database.close()
 
 
+async def sync_aifa_catalog(_context: dict[str, object]) -> None:
+    """Refresh the local AIFA catalog weekly when the operator provides a CSV."""
+    settings = get_settings()
+    if not settings.aifa_catalog_path.is_file():
+        return
+    database = SessionLocal()
+    try:
+        import_aifa_csv(database, settings.aifa_catalog_path, "weekly-local-sync")
+    finally:
+        database.close()
+
+
 class WorkerSettings:
     """ARQ worker configuration; queue connectivity is configured by environment."""
 
-    functions: ClassVar[list[object]] = [process_document, scan_watch_directory]
-    cron_jobs: ClassVar[list[object]] = [cron(scan_watch_directory, second={0})]
+    functions: ClassVar[list[object]] = [process_document, scan_watch_directory, sync_aifa_catalog]
+    cron_jobs: ClassVar[list[object]] = [cron(scan_watch_directory, second={0}), cron(sync_aifa_catalog, weekday=0, hour=3)]
     redis_settings: ClassVar[RedisSettings] = RedisSettings.from_dsn(get_settings().redis_url)

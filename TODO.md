@@ -44,13 +44,13 @@
 - [x] duplicate/re-scan detection
 
 ## P1 Pharmacy
-- [ ] Receipt schema / ReceiptLine
-- [ ] AIC OCR validation
-- [ ] AIFA importer + weekly sync
-- [ ] DrugPackage model
-- [ ] PrescriptionItem matcher
-- [ ] Mixed receipt allocation
-- [ ] patient-vs-payer review
+- [x] Receipt schema / ReceiptLine
+- [x] AIC OCR validation
+- [x] AIFA importer + weekly sync
+- [x] DrugPackage model
+- [x] PrescriptionItem matcher
+- [x] Mixed receipt allocation
+- [x] patient-vs-payer review
 
 ## P1 Insurance
 - [ ] Review/activate 2026 rule set

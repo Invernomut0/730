@@ -60,6 +60,7 @@ class ReviewType(str, enum.Enum):
     LINK_AMBIGUOUS = "LINK_AMBIGUOUS"
     DIAGNOSIS_MISSING = "DIAGNOSIS_MISSING"
     INSURANCE_RULE_AMBIGUOUS = "INSURANCE_RULE_AMBIGUOUS"
+    PATIENT_PAYER_CONFLICT = "PATIENT_PAYER_CONFLICT"
 
 
 class Household(Timestamped, Base):
@@ -123,6 +124,55 @@ class Prescription(Timestamped, Base):
     prescription_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     provider: Mapped[str | None] = mapped_column(String(255), nullable=True)
     extraction: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class DrugPackage(Timestamped, Base):
+    __tablename__ = "drug_packages"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    aic: Mapped[str] = mapped_column(String(9), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    active_ingredient: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    catalog_version: Mapped[str] = mapped_column(String(64))
+
+
+class PrescriptionItem(Timestamped, Base):
+    __tablename__ = "prescription_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    prescription_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prescriptions.id"), index=True)
+    drug_package_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("drug_packages.id"), nullable=True)
+    requested_name: Mapped[str] = mapped_column(String(255))
+    aic: Mapped[str | None] = mapped_column(String(9), nullable=True)
+    match_confidence: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class PharmacyReceipt(Timestamped, Base):
+    __tablename__ = "pharmacy_receipts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"), unique=True)
+    payer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("household_members.id"), nullable=True)
+    receipt_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    total_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    extraction: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class ReceiptLine(Timestamped, Base):
+    __tablename__ = "receipt_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    receipt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pharmacy_receipts.id"), index=True)
+    drug_package_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("drug_packages.id"), nullable=True)
+    prescription_item_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("prescription_items.id"), nullable=True)
+    patient_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("household_members.id"), nullable=True)
+    payer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("household_members.id"), nullable=True)
+    aic: Mapped[str | None] = mapped_column(String(9), nullable=True)
+    description: Mapped[str] = mapped_column(String(255))
+    quantity: Mapped[int] = mapped_column(default=1)
+    amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    aic_validated: Mapped[bool] = mapped_column(default=False)
 
 
 class ExpenseDocument(Timestamped, Base):
