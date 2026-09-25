@@ -72,3 +72,11 @@ resolved manually through the workspace.
 Keep `.env` out of source control. Model endpoints must be local or trusted
 LAN endpoints; normal application logs must not include document text or
 clinical fields.
+
+## Validation
+
+The containerized test suite uses synthetic data and validates immutable
+storage/MIME rejection, fiscal-code normalization, local OCR fallback, and
+positive and negative prescription-to-invoice link scoring. Run it with
+`docker compose run --rm api pytest -q`; lint runs with
+`docker compose run --rm api ruff check .`.
