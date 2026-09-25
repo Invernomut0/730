@@ -16,7 +16,7 @@
 - [x] Immutable storage service
 - [x] SHA-256 dedupe
 - [x] Native PDF extraction
-- [ ] OCR adapter
+- [x] OCR adapter
 - [x] LM Studio adapter
 - [x] Prescription extraction schema
 - [x] Invoice extraction schema

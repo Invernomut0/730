@@ -48,7 +48,8 @@ worker and the Next.js web UI. Open `http://localhost:3000` for the Inbox and
 
 The current foundation provides immutable PDF/PNG/JPEG ingestion with binary
 MIME sniffing, SHA-256 duplicate detection, PostgreSQL persistence, a queued
-native-PDF extraction/classification job, household/member creation, LM Studio
+native-PDF extraction/classification job with a local Tesseract fallback for
+image uploads and text-poor PDFs, household/member creation, LM Studio
 model discovery, and a real Inbox. Prescription and invoice extraction use
 versioned Pydantic schemas and local LM Studio only; every invocation records
 model/prompt/input-hash provenance. Exact identity and compatible service/date

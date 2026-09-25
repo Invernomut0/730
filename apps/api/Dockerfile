@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 WORKDIR /app
+RUN apt-get update \
+	&& apt-get install --no-install-recommends --yes tesseract-ocr \
+	&& rm -rf /var/lib/apt/lists/*
 COPY apps/api/pyproject.toml .
 RUN pip install --no-cache-dir ".[dev]"
 COPY apps/api/app ./app
