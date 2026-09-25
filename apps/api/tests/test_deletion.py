@@ -1,8 +1,10 @@
 from pathlib import Path
 from uuid import uuid4
 
+from sqlalchemy import select
+
 from app.db.session import SessionLocal
-from app.models.entities import Document, DocumentPage, Household, HouseholdMember
+from app.models.entities import Document, DocumentPage, Household, HouseholdMember, ReviewTask, ReviewType
 from app.services.deletion import delete_document_group, delete_household
 from app.services.thumbnails import thumbnail_path
 
@@ -24,6 +26,14 @@ def test_delete_document_group_removes_records_and_local_artifacts(tmp_path: Pat
         database.flush()
         document_id = document.id
         database.add(DocumentPage(document_id=document.id, page_number=1, text="Synthetic", source="native"))
+        database.add(
+            ReviewTask(
+                type=ReviewType.LINK_AMBIGUOUS,
+                entity_type="Document",
+                entity_id=uuid4(),
+                context={"candidate_document_id": str(document.id)},
+            )
+        )
         database.commit()
         original = tmp_path / storage_key
         original.parent.mkdir(parents=True)
@@ -34,6 +44,7 @@ def test_delete_document_group_removes_records_and_local_artifacts(tmp_path: Pat
 
         assert delete_document_group(database, tmp_path, document.id) == 1
         assert database.get(Document, document.id) is None
+        assert database.scalar(select(ReviewTask).where(ReviewTask.context["candidate_document_id"].as_string() == str(document.id))) is None
         assert not original.exists()
         assert not preview.exists()
     finally:

@@ -64,3 +64,32 @@ def test_confirming_ambiguous_link_creates_manual_event() -> None:
             database.execute(delete(Document).where(Document.id.in_([prescription_id, invoice_id])))
         database.commit()
         database.close()
+
+
+def test_listing_reviews_resolves_orphaned_document_review() -> None:
+    database = SessionLocal()
+    review_id = None
+    try:
+        review = ReviewTask(
+            type=ReviewType.LINK_AMBIGUOUS,
+            entity_type="Document",
+            entity_id=uuid4(),
+            context={"candidate_document_id": str(uuid4())},
+        )
+        database.add(review)
+        database.commit()
+        review_id = review.id
+
+        with TestClient(app) as client:
+            response = client.get("/api/v1/review-tasks")
+
+        assert response.status_code == 200
+        assert all(item["id"] != str(review_id) for item in response.json())
+        database.refresh(review)
+        assert review.status == "RESOLVED"
+        assert review.resolution == {"action": "documents_removed"}
+    finally:
+        if review_id:
+            database.execute(delete(ReviewTask).where(ReviewTask.id == review_id))
+        database.commit()
+        database.close()

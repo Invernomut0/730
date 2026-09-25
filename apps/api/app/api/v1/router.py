@@ -465,6 +465,24 @@ def insurance_package(event_id: UUID, db: Session = Depends(get_db), settings: S
 
 @router.get("/review-tasks", response_model=list[ReviewResponse])
 def list_review_tasks(db: Session = Depends(get_db)) -> list[ReviewResponse]:
+    """Return open reviews after resolving legacy tasks for deleted documents."""
+    document_ids = {str(document_id) for document_id in db.scalars(select(Document.id))}
+    obsolete_reviews: list[ReviewTask] = []
+    for task in db.scalars(select(ReviewTask).where(ReviewTask.status == "OPEN", ReviewTask.entity_type == "Document")):
+        candidate_id = task.context.get("candidate_document_id")
+        deleted_source = str(task.entity_id) not in document_ids
+        deleted_candidate = task.type == ReviewType.LINK_AMBIGUOUS and (
+            not isinstance(candidate_id, str) or candidate_id not in document_ids
+        )
+        if deleted_source or deleted_candidate:
+            obsolete_reviews.append(task)
+    for task in obsolete_reviews:
+        task.status = "RESOLVED"
+        task.resolution = {"action": "documents_removed"}
+        task.resolved_at = datetime.now(UTC)
+        record_audit(db, "review.resolved", "ReviewTask", task.id, {"reason": "documents_removed"})
+    if obsolete_reviews:
+        db.commit()
     return [
         ReviewResponse(id=item.id, type=item.type.value, entity_type=item.entity_type, entity_id=item.entity_id, status=item.status, priority=item.priority, context=item.context)
         for item in db.scalars(select(ReviewTask).where(ReviewTask.status == "OPEN").order_by(ReviewTask.priority.desc()))

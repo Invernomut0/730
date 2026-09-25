@@ -129,9 +129,11 @@ The Medical Event workspace uses XYFlow to show persisted document links,
 confidence and evidence. Its insurance panel evaluates the versioned 2026
 `specialist_and_diagnostics` rule as a **candidate only**, displaying missing
 documentation rather than claiming a reimbursement. Link reviews show the two
-documents, score, supporting evidence and conflicts; an operator can reject the
-pair or manually confirm it, which creates an auditable confirmed event and
-link.
+documents, score, supporting evidence and conflicts; the operator opens both
+originals before either creating an auditable confirmed event or marking the
+suggestion as unrelated. Reviews are automatically resolved when either
+referenced document has been deleted, so the queue never presents an action that
+cannot be completed.
 
 ## Privacy
 

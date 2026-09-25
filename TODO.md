@@ -107,6 +107,7 @@
 - [x] targeted document and household deletion
 
 ## P3 Quality
+- [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system
 - [ ] synthetic fixture generator
 - [ ] E2E tests

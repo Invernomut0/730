@@ -104,6 +104,8 @@ input:hover, select:hover { border-color: #a79888; }
 .review-actions .reject:hover { color: #fff; background: #9e3326; }
 .text-button { padding: 0.45rem 0.65rem; color: var(--navy); background: transparent; border: 1px solid var(--navy); border-radius: 999px; font-weight: 700; }
 .text-button:hover { color: #fff; background: var(--navy); }
+.text-button:disabled { cursor: not-allowed; opacity: 0.45; }
+.text-button:disabled:hover { color: var(--navy); background: transparent; }
 .tax-controls { display: flex; gap: 0.65rem; flex-wrap: wrap; align-items: end; }
 .tax-list { display: grid; gap: 0.6rem; margin: 1.2rem 0 0; padding: 0; list-style: none; }
 .tax-list li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.8rem; background: #fbf7f0; border-left: 3px solid var(--sage); }

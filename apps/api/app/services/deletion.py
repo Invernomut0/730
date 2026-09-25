@@ -59,6 +59,23 @@ def _delete_expense_dependents(db: Session, expense_ids: list[UUID]) -> None:
     db.execute(delete(PaymentEvidence).where(PaymentEvidence.expense_document_id.in_(expense_ids)))
 
 
+def delete_document_review_tasks(db: Session, document_ids: list[UUID]) -> None:
+    """Delete reviews that reference a removed document as source or candidate."""
+    document_id_values = {str(document_id) for document_id in document_ids}
+    review_ids = [
+        review.id
+        for review in db.scalars(select(ReviewTask))
+        if review.entity_id in document_ids
+        or (
+            review.entity_type == "Document"
+            and isinstance(review.context.get("candidate_document_id"), str)
+            and review.context["candidate_document_id"] in document_id_values
+        )
+    ]
+    if review_ids:
+        db.execute(delete(ReviewTask).where(ReviewTask.id.in_(review_ids)))
+
+
 def delete_document_group(db: Session, storage_root: Path, document_id: UUID) -> int:
     """Delete a document and exact duplicates plus all dependent application data."""
     selected = db.get(Document, document_id)
@@ -94,7 +111,7 @@ def delete_document_group(db: Session, storage_root: Path, document_id: UUID) ->
     db.execute(delete(DocumentPage).where(DocumentPage.document_id.in_(document_ids)))
     db.execute(delete(AIExecution).where(AIExecution.document_id.in_(document_ids)))
     db.execute(delete(DocumentLink).where(or_(DocumentLink.source_document_id.in_(document_ids), DocumentLink.target_document_id.in_(document_ids))))
-    db.execute(delete(ReviewTask).where(ReviewTask.entity_id.in_(document_ids)))
+    delete_document_review_tasks(db, document_ids)
     db.execute(delete(AuditEvent).where(AuditEvent.entity_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))
     db.commit()
