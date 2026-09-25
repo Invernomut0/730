@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useState } from "react";
 
 import { EventWorkspace } from "./EventWorkspace";
+import { FamilyPanel } from "./FamilyPanel";
 
 type Document = {
   id: string;
@@ -58,6 +59,7 @@ export default function Home() {
         </article>)}
       </div>
     </section>
+    <FamilyPanel />
     <EventWorkspace />
   </main>;
 }

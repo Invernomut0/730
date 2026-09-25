@@ -21,6 +21,8 @@ from app.schemas.api import (
     GraphEdge,
     GraphNode,
     HouseholdCreate,
+    HouseholdMemberResponse,
+    HouseholdResponse,
     InsuranceResponse,
     MedicalEventResponse,
     MemberCreate,
@@ -29,6 +31,7 @@ from app.schemas.api import (
     UploadResponse,
 )
 from app.services.insurance import evaluate_specialist_and_diagnostics
+from app.services.identity import normalize_fiscal_code
 from app.services.storage import ImmutableStorage, UnsupportedDocument
 
 router = APIRouter(prefix="/api/v1")
@@ -118,12 +121,37 @@ def create_household(payload: HouseholdCreate, db: Session = Depends(get_db)) ->
     return {"id": str(household.id), "name": household.name}
 
 
+@router.get("/households", response_model=list[HouseholdResponse])
+def list_households(db: Session = Depends(get_db)) -> list[HouseholdResponse]:
+    return [
+        HouseholdResponse(
+            id=household.id,
+            name=household.name,
+            members=[
+                HouseholdMemberResponse(
+                    id=member.id,
+                    first_name=member.first_name,
+                    last_name=member.last_name,
+                    fiscal_code=member.fiscal_code,
+                    relationship_type=member.relationship_type,
+                )
+                for member in household.members
+            ],
+        )
+        for household in db.scalars(select(Household).order_by(Household.name))
+    ]
+
+
 @router.post("/household-members", status_code=status.HTTP_201_CREATED)
 def create_member(payload: MemberCreate, db: Session = Depends(get_db)) -> dict[str, str]:
     household = db.get(Household, payload.household_id)
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found.")
-    member = HouseholdMember(**payload.model_dump(), fiscal_code=payload.fiscal_code.upper() if payload.fiscal_code else None)
+    try:
+        fiscal_code = normalize_fiscal_code(payload.fiscal_code) if payload.fiscal_code else None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    member = HouseholdMember(**payload.model_dump(), fiscal_code=fiscal_code)
     db.add(member)
     db.commit()
     return {"id": str(member.id), "name": f"{member.first_name} {member.last_name}"}

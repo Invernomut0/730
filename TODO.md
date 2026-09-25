@@ -21,6 +21,7 @@
 - [x] Prescription extraction schema
 - [x] Invoice extraction schema
 - [x] HouseholdMember model
+- [x] Family management UI
 - [x] Patient resolver
 - [x] MedicalEvent model
 - [x] DocumentLink model

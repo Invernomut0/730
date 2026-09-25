@@ -56,6 +56,11 @@ model/prompt/input-hash provenance. Exact identity and compatible service/date
 signals can create an explainable proposed `MedicalEvent`; ambiguous cases
 remain review tasks.
 
+Use the **Famiglia** panel to create a household and household members before
+uploading clinical documents. Fiscal codes are normalized and shape-validated
+at the API boundary; their use never collapses patient, payer and fiscal-holder
+roles into a single identity.
+
 The Medical Event workspace uses XYFlow to show persisted document links,
 confidence and evidence. Its insurance panel evaluates the versioned 2026
 `specialist_and_diagnostics` rule as a **candidate only**, displaying missing

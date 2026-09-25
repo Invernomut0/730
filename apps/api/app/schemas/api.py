@@ -19,6 +19,20 @@ class MemberCreate(BaseModel):
     relationship_type: str | None = Field(default=None, max_length=80)
 
 
+class HouseholdMemberResponse(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    fiscal_code: str | None
+    relationship_type: str | None
+
+
+class HouseholdResponse(BaseModel):
+    id: UUID
+    name: str
+    members: list[HouseholdMemberResponse]
+
+
 class DocumentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
