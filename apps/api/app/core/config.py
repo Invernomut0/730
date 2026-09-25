@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     storage_root: Path = Path("/data")
     watch_directory: Path = Path("/data/inbox")
     max_upload_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
+    auth_enabled: bool = False
+    auth_password_hash: str = ""
+    session_secret: str = ""
 
     lmstudio_base_url: HttpUrl = "http://host.docker.internal:1234/v1"
     lmstudio_api_token: str = ""

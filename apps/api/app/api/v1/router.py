@@ -7,7 +7,7 @@ from uuid import UUID
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,7 @@ from app.schemas.api import (
     HouseholdMemberResponse,
     HouseholdResponse,
     InsuranceResponse,
+    LoginRequest,
     MedicalEventResponse,
     MemberCreate,
     ReviewResolution,
@@ -42,6 +43,7 @@ from app.schemas.api import (
 from app.services.insurance import evaluate_specialist_and_diagnostics
 from app.services.identity import normalize_fiscal_code
 from app.services.audit import record_audit
+from app.core.security import verify_password
 from app.services.storage import ImmutableStorage, UnsupportedDocument
 
 router = APIRouter(prefix="/api/v1")
@@ -71,6 +73,26 @@ def document_response(document: Document, db: Session) -> DocumentResponse:
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post("/auth/login")
+def login(payload: LoginRequest, request: Request, settings: Settings = Depends(get_settings)) -> dict[str, str]:
+    """Create a local authenticated session when LAN authentication is enabled."""
+    if not settings.auth_enabled:
+        raise HTTPException(status_code=409, detail="Authentication is disabled in this environment.")
+    if not settings.auth_password_hash or not settings.session_secret:
+        raise HTTPException(status_code=503, detail="Authentication is not securely configured.")
+    if not verify_password(payload.password, settings.auth_password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials.")
+    request.session["authenticated"] = True
+    return {"status": "authenticated"}
+
+
+@router.post("/auth/logout")
+def logout(request: Request) -> dict[str, str]:
+    """Clear the browser's local authenticated session."""
+    request.session.clear()
+    return {"status": "signed_out"}
 
 
 @router.get("/health/ai")

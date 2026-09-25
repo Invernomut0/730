@@ -8,7 +8,7 @@
 - [x] Add Alembic
 - [x] Shared environment/config
 - [x] CI lint/typecheck/test
-- [ ] Authentication/session foundation
+- [x] Authentication/session foundation
 - [x] AuditEvent model
 
 ## P0 Vertical slice

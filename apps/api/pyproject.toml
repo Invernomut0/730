@@ -1,6 +1,6 @@
 [project]
 name = "healthdocs-api"
-version = "0.1.9"
+version = "0.1.10"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
@@ -14,7 +14,9 @@ dependencies = [
   "python-multipart>=0.0.12",
   "pymupdf>=1.24",
   "arq>=0.26",
-  "pyyaml>=6.0"
+  "pyyaml>=6.0",
+  "pwdlib[argon2]>=0.3",
+  "itsdangerous>=2.2"
 ]
 
 [project.optional-dependencies]

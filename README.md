@@ -87,6 +87,15 @@ PostgreSQL-backed tests and Ruff checks on each push and pull request.
 Material actions create privacy-preserving audit events that store only opaque
 entity identifiers and operational metadata.
 
+## LAN authentication
+
+Authentication is intentionally disabled for local development. Before exposing
+the service on a LAN, set `AUTH_ENABLED=true`, an Argon2 value in
+`AUTH_PASSWORD_HASH`, and a high-entropy `SESSION_SECRET` in the untracked
+`.env` file. The API then requires a signed `HttpOnly`, `SameSite=Lax` session
+cookie for all application routes; health checks and login remain available for
+bootstrap. Never commit the password hash or session secret.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

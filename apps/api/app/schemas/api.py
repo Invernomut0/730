@@ -6,6 +6,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class LoginRequest(BaseModel):
+    password: str = Field(min_length=1)
+
+
 class HouseholdCreate(BaseModel):
     name: str = Field(min_length=1, max_length=160)
 
