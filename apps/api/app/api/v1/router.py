@@ -56,7 +56,7 @@ from app.services.insurance import evaluate_specialist_and_diagnostics, export_p
 from app.services.identity import normalize_fiscal_code
 from app.services.audit import record_audit
 from app.core.security import verify_password
-from app.services.storage import ImmutableStorage, UnsupportedDocument
+from app.services.storage import ImmutableStorage, UnsupportedDocument, UploadTooLarge, validate_declared_request_size
 from app.services.thumbnails import thumbnail_path
 from app.services.reimbursements import allocate_reimbursement, out_of_pocket
 from app.services.tax import evaluate_expense
@@ -134,13 +134,26 @@ async def available_models(settings: Settings = Depends(get_settings)) -> dict[s
 
 @router.post("/documents", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> UploadResponse:
+    try:
+        validate_declared_request_size(
+            request.headers.get("content-length"),
+            settings.max_upload_bytes,
+            settings.max_upload_request_overhead_bytes,
+        )
+    except UploadTooLarge as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except UnsupportedDocument as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     content = await file.read(settings.max_upload_bytes + 1)
     try:
         stored = ImmutableStorage(settings).store(content, file.filename)
+    except UploadTooLarge as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
     except UnsupportedDocument as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

@@ -5,6 +5,13 @@ HealthDocs stores sensitive health, tax and payment information. LAN is not trus
 ## Requirements
 Authentication, secure session cookies, CSRF protection, modern password hashing, login rate limiting, least privilege, strict MIME/size checks, path-traversal defense, no execution of uploads, sanitized logs and auditable material actions.
 
+## Upload hardening
+The API rejects malformed or clearly oversized declared request bodies before
+buffering them, then enforces the exact file-size limit while reading. MIME type
+is determined from supported binary signatures, never the client header.
+Originals are written through a private temporary file and atomically published
+with `0600` permissions; partial writes cannot appear as stored documents.
+
 ## AI
 Cloud OCR/LLM disabled by default. LM Studio/Rizzo Flow must remain local or LAN-only. Only non-personal public identifiers may be sent to approved external data sources.
 

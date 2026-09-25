@@ -96,7 +96,7 @@
 
 ## P2 Security / backup
 - [x] HTTPS LAN guide
-- [ ] upload hardening
+- [x] upload hardening
 - [ ] auth rate limiting
 - [ ] log-redaction tests
 - [ ] encrypted local backup

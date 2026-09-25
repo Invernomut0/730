@@ -76,6 +76,12 @@ model/prompt/input-hash provenance. Exact identity and compatible service/date
 signals can create an explainable proposed `MedicalEvent`; ambiguous cases
 remain review tasks.
 
+Uploads are size-checked before and during buffering, verified by binary
+signature rather than HTTP headers, and atomically stored with private file
+permissions. Adjust the multipart allowance with
+`MAX_UPLOAD_REQUEST_OVERHEAD_BYTES` only when a trusted proxy adds larger
+request metadata.
+
 Use the **Famiglia** panel to create a household and household members before
 uploading clinical documents. Fiscal codes are normalized and shape-validated
 at the API boundary; their use never collapses patient, payer and fiscal-holder

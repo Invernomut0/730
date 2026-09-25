@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +17,10 @@ _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 class UnsupportedDocument(ValueError):
     """Raised when an upload does not satisfy the supported-file policy."""
+
+
+class UploadTooLarge(UnsupportedDocument):
+    """Raised when an upload exceeds a configured request or file limit."""
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,22 @@ def sanitize_filename(filename: str | None) -> str:
     return _SAFE_FILENAME.sub("_", candidate).strip("._")[:200] or "document"
 
 
+def validate_declared_request_size(
+    content_length: str | None, max_upload_bytes: int, request_overhead_bytes: int
+) -> None:
+    """Reject clearly oversized multipart requests before buffering their body."""
+    if content_length is None:
+        return
+    try:
+        declared_size = int(content_length)
+    except ValueError as error:
+        raise UnsupportedDocument("The upload size header is invalid.") from error
+    if declared_size < 0:
+        raise UnsupportedDocument("The upload size header is invalid.")
+    if declared_size > max_upload_bytes + request_overhead_bytes:
+        raise UploadTooLarge("The upload request exceeds the configured size limit.")
+
+
 class ImmutableStorage:
     """Store each original once under a UUID/hash-derived path."""
 
@@ -55,7 +77,7 @@ class ImmutableStorage:
 
     def store(self, content: bytes, filename: str | None) -> StoredFile:
         if len(content) > self._settings.max_upload_bytes:
-            raise UnsupportedDocument("The uploaded file exceeds the configured size limit.")
+            raise UploadTooLarge("The uploaded file exceeds the configured size limit.")
         if not content:
             raise UnsupportedDocument("Empty uploads are not allowed.")
         mime_type = sniff_mime(content)
@@ -70,5 +92,17 @@ class ImmutableStorage:
         storage_key = f"originals/{digest[:2]}/{uuid.uuid4()}{suffix}"
         destination = self._settings.storage_root / storage_key
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(content)
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as temporary:
+                temporary_path = Path(temporary.name)
+                os.chmod(temporary_path, 0o600)
+                temporary.write(content)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            os.replace(temporary_path, destination)
+        except OSError as error:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+            raise UnsupportedDocument("The upload could not be stored safely.") from error
         return StoredFile(digest, len(content), mime_type, sanitize_filename(filename), storage_key)
