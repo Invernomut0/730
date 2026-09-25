@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     watch_directory: Path = Path("/data/inbox")
     max_upload_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     max_upload_request_overhead_bytes: int = Field(default=64 * 1024, ge=0)
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     auth_enabled: bool = False
     auth_password_hash: str = ""
     session_secret: str = ""

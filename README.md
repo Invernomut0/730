@@ -66,6 +66,10 @@ Copy `.env.example` to `.env` and adjust only local/LAN endpoints and model IDs.
 worker and the Next.js web UI. Open `http://localhost:3000` for the Inbox and
 `http://localhost:8000/docs` for the generated API contract.
 
+The API accepts browser requests only from the local web origin
+`http://localhost:3000` by default. Set `CORS_ORIGINS` as a JSON list only when
+adding another trusted local web origin.
+
 The web UI uses a local, responsive editorial design system: no external fonts
 or assets are loaded. Its dossier cards, high-contrast states, and responsive
 forms preserve usability for document review on desktop and tablet screens.
