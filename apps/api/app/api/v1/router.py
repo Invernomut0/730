@@ -9,7 +9,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
@@ -19,6 +19,7 @@ from app.models.entities import (
     Document,
     DocumentLink,
     DocumentPage,
+    DocumentState,
     ExpenseDocument,
     Household,
     HouseholdMember,
@@ -540,4 +541,44 @@ def resolve_review_task(task_id: UUID, payload: ReviewResolution, db: Session = 
     task.resolved_at = datetime.now(UTC)
     record_audit(db, "review.resolved", "ReviewTask", task.id)
     db.commit()
+    return ReviewResponse(id=task.id, type=task.type.value, entity_type=task.entity_type, entity_id=task.entity_id, status=task.status, priority=task.priority, context=task.context)
+
+
+@router.post("/review-tasks/{task_id}/retry", response_model=ReviewResponse)
+async def retry_document_review_task(task_id: UUID, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> ReviewResponse:
+    """Requeue a document whose local extraction or classification needs another attempt."""
+    task = db.get(ReviewTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Review task not found.")
+    if task.type != ReviewType.DOCUMENT_TYPE_UNCERTAIN or task.entity_type != "Document":
+        raise HTTPException(status_code=422, detail="Only document-classification reviews can be retried.")
+    document = db.get(Document, task.entity_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="The reviewed document is no longer available.")
+    try:
+        redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    except OSError as error:
+        raise HTTPException(status_code=503, detail="The processing queue is unavailable.") from error
+    try:
+        db.execute(delete(DocumentPage).where(DocumentPage.document_id == document.id))
+        for open_task in db.scalars(
+            select(ReviewTask).where(
+                ReviewTask.status == "OPEN",
+                ReviewTask.type == ReviewType.DOCUMENT_TYPE_UNCERTAIN,
+                ReviewTask.entity_type == "Document",
+                ReviewTask.entity_id == document.id,
+            )
+        ):
+            open_task.status = "RESOLVED"
+            open_task.resolution = {"action": "retry_requested"}
+            open_task.resolved_at = datetime.now(UTC)
+            record_audit(db, "review.resolved", "ReviewTask", open_task.id, {"action": "retry_requested"})
+        document.state = DocumentState.STORED
+        db.commit()
+        await redis.enqueue_job("process_document", str(document.id))
+    except OSError as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="The processing queue is unavailable.") from error
+    finally:
+        await redis.aclose()
     return ReviewResponse(id=task.id, type=task.type.value, entity_type=task.entity_type, entity_id=task.entity_id, status=task.status, priority=task.priority, context=task.context)

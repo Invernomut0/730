@@ -135,6 +135,11 @@ suggestion as unrelated. Reviews are automatically resolved when either
 referenced document has been deleted, so the queue never presents an action that
 cannot be completed.
 
+Reviews for incomplete document classification are distinct from link reviews:
+they provide the single original for inspection and a **Riprova elaborazione**
+action. The retry clears obsolete OCR coordinates, requeues local extraction,
+and creates a new review only if the new local attempt still cannot complete.
+
 ## Privacy
 
 Keep `.env` out of source control. Model endpoints must be local or trusted

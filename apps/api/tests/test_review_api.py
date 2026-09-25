@@ -4,8 +4,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
+from app.core.config import get_settings
 from app.main import app
-from app.models.entities import Document, DocumentLink, DocumentType, ExpenseDocument, MedicalEvent, Prescription, ReviewTask, ReviewType
+from app.models.entities import Document, DocumentLink, DocumentState, DocumentType, ExpenseDocument, MedicalEvent, Prescription, ReviewTask, ReviewType
 
 
 def test_confirming_ambiguous_link_creates_manual_event() -> None:
@@ -92,4 +93,54 @@ def test_listing_reviews_resolves_orphaned_document_review() -> None:
         if review_id:
             database.execute(delete(ReviewTask).where(ReviewTask.id == review_id))
         database.commit()
+        database.close()
+
+
+def test_retrying_classification_review_queues_local_processing() -> None:
+    database = SessionLocal()
+    document_id = review_id = None
+    storage_path = None
+    try:
+        settings = get_settings()
+        storage_key = f"originals/test/{uuid4()}.pdf"
+        storage_path = settings.storage_root / storage_key
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        storage_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n")
+        document = Document(
+            original_filename="retry-review.pdf",
+            mime_type="application/pdf",
+            byte_size=storage_path.stat().st_size,
+            sha256=f"{uuid4().hex}{uuid4().hex}"[:64],
+            storage_key=storage_key,
+            state=DocumentState.REVIEW_REQUIRED,
+        )
+        database.add(document)
+        database.flush()
+        document_id = document.id
+        review = ReviewTask(
+            type=ReviewType.DOCUMENT_TYPE_UNCERTAIN,
+            entity_type="Document",
+            entity_id=document.id,
+            context={"reason": "structured_extraction_unavailable_or_invalid"},
+        )
+        database.add(review)
+        database.commit()
+        review_id = review.id
+
+        with TestClient(app) as client:
+            response = client.post(f"/api/v1/review-tasks/{review_id}/retry")
+
+        assert response.status_code == 200
+        database.refresh(review)
+        database.refresh(document)
+        assert review.status == "RESOLVED"
+        assert review.resolution == {"action": "retry_requested"}
+        assert document.state in {DocumentState.STORED, DocumentState.EXTRACTING, DocumentState.REVIEW_REQUIRED}
+    finally:
+        if document_id:
+            database.execute(delete(ReviewTask).where(ReviewTask.entity_id == document_id))
+            database.execute(delete(Document).where(Document.id == document_id))
+        database.commit()
+        if storage_path:
+            storage_path.unlink(missing_ok=True)
         database.close()
