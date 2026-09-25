@@ -20,20 +20,21 @@ def test_argon2_password_verification_rejects_wrong_password() -> None:
 
 
 @pytest.mark.parametrize("origin", ["http://localhost:3000", "http://127.0.0.1:3000"])
-def test_local_web_origins_can_preflight_household_creation(origin: str) -> None:
+@pytest.mark.parametrize("method", ["POST", "DELETE"])
+def test_local_web_origins_can_preflight_mutating_requests(origin: str, method: str) -> None:
     with TestClient(app) as client:
         response = client.options(
             "/api/v1/households",
             headers={
                 "Origin": origin,
-                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Method": method,
                 "Access-Control-Request-Headers": "content-type",
             },
         )
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == origin
-    assert "POST" in response.headers["access-control-allow-methods"]
+    assert method in response.headers["access-control-allow-methods"]
 
 
 def test_database_reset_requires_exact_operator_confirmation() -> None:

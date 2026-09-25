@@ -84,6 +84,10 @@ model/prompt/input-hash provenance. Exact identity and compatible service/date
 signals can create an explainable proposed `MedicalEvent`; ambiguous cases
 remain review tasks.
 
+The deterministic classifier gives explicit fiscal markers (for example
+`FATTURA`, VAT and taxable-total fields) priority over an incidental
+`Ricetta`/`Quota Ricetta` mention on a healthcare invoice.
+
 Uploads are size-checked before and during buffering, verified by binary
 signature rather than HTTP headers, and atomically stored with private file
 permissions. Adjust the multipart allowance with

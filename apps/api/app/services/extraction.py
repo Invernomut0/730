@@ -79,10 +79,10 @@ def extract_with_ocr(path: Path, mime_type: str, provider: OCRProvider) -> list[
 def classify_document(text: str) -> DocumentType:
     """Classify only strong textual signals; uncertain files remain UNKNOWN."""
     normalized = text.upper()
-    if any(token in normalized for token in ("RICETTA", "PRESCRIZIONE", "MEDICO PRESCRITTORE")):
-        return DocumentType.PRESCRIPTION
     if any(token in normalized for token in ("FATTURA", "IMPONIBILE", "PARTITA IVA")):
         return DocumentType.INVOICE
+    if any(token in normalized for token in ("RICETTA", "PRESCRIZIONE", "MEDICO PRESCRITTORE")):
+        return DocumentType.PRESCRIPTION
     if "REFERTO" in normalized:
         return DocumentType.MEDICAL_REPORT
     return DocumentType.UNKNOWN
