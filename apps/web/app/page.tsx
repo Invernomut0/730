@@ -2,6 +2,8 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 
+import { EventWorkspace } from "./EventWorkspace";
+
 type Document = {
   id: string;
   original_filename: string;
@@ -56,5 +58,6 @@ export default function Home() {
         </article>)}
       </div>
     </section>
+    <EventWorkspace />
   </main>;
 }

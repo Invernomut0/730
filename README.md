@@ -55,6 +55,12 @@ model/prompt/input-hash provenance. Exact identity and compatible service/date
 signals can create an explainable proposed `MedicalEvent`; ambiguous cases
 remain review tasks.
 
+The Medical Event workspace uses XYFlow to show persisted document links,
+confidence and evidence. Its insurance panel evaluates the versioned 2026
+`specialist_and_diagnostics` rule as a **candidate only**, displaying missing
+documentation rather than claiming a reimbursement. Open review tasks can be
+resolved manually through the workspace.
+
 ## Privacy
 
 Keep `.env` out of source control. Model endpoints must be local or trusted

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from arq import create_pool
@@ -13,8 +14,21 @@ from sqlalchemy.orm import Session
 from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
-from app.models.entities import Document, DocumentLink, Household, HouseholdMember, MedicalEvent
-from app.schemas.api import DocumentResponse, EventGraph, GraphEdge, GraphNode, HouseholdCreate, MemberCreate, UploadResponse
+from app.models.entities import Document, DocumentLink, Household, HouseholdMember, MedicalEvent, ReviewTask
+from app.schemas.api import (
+    DocumentResponse,
+    EventGraph,
+    GraphEdge,
+    GraphNode,
+    HouseholdCreate,
+    InsuranceResponse,
+    MedicalEventResponse,
+    MemberCreate,
+    ReviewResolution,
+    ReviewResponse,
+    UploadResponse,
+)
+from app.services.insurance import evaluate_specialist_and_diagnostics
 from app.services.storage import ImmutableStorage, UnsupportedDocument
 
 router = APIRouter(prefix="/api/v1")
@@ -129,3 +143,48 @@ def medical_event_graph(event_id: UUID, db: Session = Depends(get_db)) -> EventG
                 nodes.append(GraphNode(id=str(document.id), type="document", label=document.original_filename, metadata={"document_type": document.document_type.value}, status=document.state.value))
         edges.append(GraphEdge(id=str(link.id), source=str(link.source_document_id), target=str(link.target_document_id), type=link.relation_type, confidence=link.score, evidence=link.evidence, conflicts=link.conflicts))
     return EventGraph(nodes=nodes, edges=edges)
+
+
+@router.get("/medical-events", response_model=list[MedicalEventResponse])
+def list_medical_events(db: Session = Depends(get_db)) -> list[MedicalEventResponse]:
+    return [
+        MedicalEventResponse(id=item.id, title=item.title, status=item.status.value, confidence=item.confidence)
+        for item in db.scalars(select(MedicalEvent).order_by(MedicalEvent.created_at.desc()))
+    ]
+
+
+@router.get("/medical-events/{event_id}/insurance-evaluation", response_model=InsuranceResponse)
+def insurance_evaluation(event_id: UUID, db: Session = Depends(get_db)) -> InsuranceResponse:
+    if db.get(MedicalEvent, event_id) is None:
+        raise HTTPException(status_code=404, detail="Medical event not found.")
+    result = evaluate_specialist_and_diagnostics(db, event_id)
+    return InsuranceResponse(
+        category=result.category,
+        status=result.status,
+        documentation_complete=result.documentation_complete,
+        estimated_eligible_amount=str(result.estimated_eligible_amount),
+        rules=result.rules,
+        evidence=[item for item in result.evidence if item],
+        missing_documents=result.missing_documents,
+        warnings=result.warnings,
+    )
+
+
+@router.get("/review-tasks", response_model=list[ReviewResponse])
+def list_review_tasks(db: Session = Depends(get_db)) -> list[ReviewResponse]:
+    return [
+        ReviewResponse(id=item.id, type=item.type.value, entity_type=item.entity_type, entity_id=item.entity_id, status=item.status, priority=item.priority, context=item.context)
+        for item in db.scalars(select(ReviewTask).where(ReviewTask.status == "OPEN").order_by(ReviewTask.priority.desc()))
+    ]
+
+
+@router.post("/review-tasks/{task_id}/resolve", response_model=ReviewResponse)
+def resolve_review_task(task_id: UUID, payload: ReviewResolution, db: Session = Depends(get_db)) -> ReviewResponse:
+    task = db.get(ReviewTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Review task not found.")
+    task.status = "RESOLVED"
+    task.resolution = payload.resolution
+    task.resolved_at = datetime.now(UTC)
+    db.commit()
+    return ReviewResponse(id=task.id, type=task.type.value, entity_type=task.entity_type, entity_id=task.entity_id, status=task.status, priority=task.priority, context=task.context)

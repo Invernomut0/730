@@ -58,3 +58,35 @@ class GraphEdge(BaseModel):
 class EventGraph(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+
+class MedicalEventResponse(BaseModel):
+    id: UUID
+    title: str
+    status: str
+    confidence: float
+
+
+class ReviewResponse(BaseModel):
+    id: UUID
+    type: str
+    entity_type: str
+    entity_id: UUID
+    status: str
+    priority: int
+    context: dict[str, object]
+
+
+class ReviewResolution(BaseModel):
+    resolution: dict[str, object]
+
+
+class InsuranceResponse(BaseModel):
+    category: str
+    status: str
+    documentation_complete: bool
+    estimated_eligible_amount: str
+    rules: list[str]
+    evidence: list[str]
+    missing_documents: list[str]
+    warnings: list[str]

@@ -25,10 +25,10 @@
 - [x] MedicalEvent model
 - [x] DocumentLink model
 - [x] Deterministic link scoring
-- [ ] Insurance evaluation shell
+- [x] Insurance evaluation shell
 - [x] Event graph API
-- [ ] Event graph UI
-- [ ] ReviewTask model/UI
+- [x] Event graph UI
+- [x] ReviewTask model/UI
 
 ## P1 Document platform
 - [ ] Watched directory
