@@ -38,3 +38,25 @@ AI is deterministic-first: rules and exact identifiers before Rizzo Flow, embedd
 Designed for LAN deployment. Authentication is mandatory; no cloud OCR/LLM by default. Backups are encrypted locally before upload.
 
 Start with `docs/IMPLEMENTATION_PLAN.md` and `TODO.md`.
+
+## Local development
+
+Copy `.env.example` to `.env` and adjust only local/LAN endpoints and model IDs.
+`docker compose up --build` starts PostgreSQL, Redis, the FastAPI API, the ARQ
+worker and the Next.js web UI. Open `http://localhost:3000` for the Inbox and
+`http://localhost:8000/docs` for the generated API contract.
+
+The current foundation provides immutable PDF/PNG/JPEG ingestion with binary
+MIME sniffing, SHA-256 duplicate detection, PostgreSQL persistence, a queued
+native-PDF extraction/classification job, household/member creation, LM Studio
+model discovery, and a real Inbox. Prescription and invoice extraction use
+versioned Pydantic schemas and local LM Studio only; every invocation records
+model/prompt/input-hash provenance. Exact identity and compatible service/date
+signals can create an explainable proposed `MedicalEvent`; ambiguous cases
+remain review tasks.
+
+## Privacy
+
+Keep `.env` out of source control. Model endpoints must be local or trusted
+LAN endpoints; normal application logs must not include document text or
+clinical fields.

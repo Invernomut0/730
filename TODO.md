@@ -1,32 +1,32 @@
 # TODO
 
 ## P0 Foundation
-- [ ] Scaffold FastAPI app
-- [ ] Scaffold Next.js app
-- [ ] Scaffold async worker
-- [ ] Add PostgreSQL + Redis Compose services
-- [ ] Add Alembic
-- [ ] Shared environment/config
+- [x] Scaffold FastAPI app
+- [x] Scaffold Next.js app
+- [x] Scaffold async worker
+- [x] Add PostgreSQL + Redis Compose services
+- [x] Add Alembic
+- [x] Shared environment/config
 - [ ] CI lint/typecheck/test
 - [ ] Authentication/session foundation
 - [ ] AuditEvent model
 
 ## P0 Vertical slice
-- [ ] Document upload endpoint
-- [ ] Immutable storage service
-- [ ] SHA-256 dedupe
-- [ ] Native PDF extraction
+- [x] Document upload endpoint
+- [x] Immutable storage service
+- [x] SHA-256 dedupe
+- [x] Native PDF extraction
 - [ ] OCR adapter
-- [ ] LM Studio adapter
-- [ ] Prescription extraction schema
-- [ ] Invoice extraction schema
-- [ ] HouseholdMember model
-- [ ] Patient resolver
-- [ ] MedicalEvent model
-- [ ] DocumentLink model
-- [ ] Deterministic link scoring
+- [x] LM Studio adapter
+- [x] Prescription extraction schema
+- [x] Invoice extraction schema
+- [x] HouseholdMember model
+- [x] Patient resolver
+- [x] MedicalEvent model
+- [x] DocumentLink model
+- [x] Deterministic link scoring
 - [ ] Insurance evaluation shell
-- [ ] Event graph API
+- [x] Event graph API
 - [ ] Event graph UI
 - [ ] ReviewTask model/UI
 
