@@ -8,6 +8,7 @@ from uuid import UUID
 from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -45,6 +46,7 @@ from app.services.identity import normalize_fiscal_code
 from app.services.audit import record_audit
 from app.core.security import verify_password
 from app.services.storage import ImmutableStorage, UnsupportedDocument
+from app.services.thumbnails import thumbnail_path
 
 router = APIRouter(prefix="/api/v1")
 
@@ -152,6 +154,22 @@ async def upload_document(
 @router.get("/documents", response_model=list[DocumentResponse])
 def list_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
     return [document_response(item, db) for item in db.scalars(select(Document).order_by(Document.created_at.desc()))]
+
+
+@router.get("/documents/{document_id}/thumbnail")
+def document_thumbnail(
+    document_id: UUID,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    """Serve the generated preview only for an existing local document."""
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    preview = thumbnail_path(settings.storage_root, document.sha256)
+    if not preview.is_file():
+        raise HTTPException(status_code=404, detail="Thumbnail is not available yet.")
+    return FileResponse(preview, media_type="image/png")
 
 
 @router.post("/households", status_code=status.HTTP_201_CREATED)

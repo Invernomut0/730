@@ -108,6 +108,10 @@ Supported originals are PDF, PNG, JPEG, TIFF, and HEIC. TIFF and HEIC pages
 are normalized to temporary PNG files only for local OCR; their stored
 originals remain unchanged.
 
+The processing worker creates an idempotent, bounded PNG thumbnail from the
+first PDF page or raster original. It is available at
+`GET /api/v1/documents/{document_id}/thumbnail` once processing has started.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

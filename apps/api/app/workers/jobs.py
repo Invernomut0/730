@@ -24,6 +24,7 @@ from app.services.eventing import cluster_document
 from app.services.ingestion import archive_inbox_file, ingest_content
 from app.services.storage import UnsupportedDocument
 from app.services.structuring import structure_document
+from app.services.thumbnails import generate_thumbnail, thumbnail_path
 from app.services.watched_directory import StableFileTracker
 
 _stable_files = StableFileTracker()
@@ -39,6 +40,7 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
         document.state = DocumentState.EXTRACTING
         db.commit()
         path = get_settings().storage_root / document.storage_key
+        generate_thumbnail(path, document.mime_type, thumbnail_path(get_settings().storage_root, document.sha256))
         pages = []
         if document.mime_type == "application/pdf":
             pages = extract_pdf_text(path)

@@ -37,7 +37,7 @@
 - [x] Watched directory
 - [x] File-write stability detection
 - [x] TIFF/HEIC
-- [ ] Thumbnails
+- [x] Thumbnails
 - [ ] OCR bbox persistence
 - [ ] Viewer highlights
 - [ ] Logical renaming
