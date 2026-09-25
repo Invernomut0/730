@@ -11,4 +11,5 @@ COPY apps/api/alembic.ini ./alembic.ini
 COPY apps/api/tests ./tests
 COPY prompts /prompts
 COPY rules /rules
+RUN pip install --no-deps .
 CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]

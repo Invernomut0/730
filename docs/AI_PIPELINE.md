@@ -24,6 +24,8 @@ Fallback to main LLM when evidence is insufficient, confidence is low or generat
 The checked-in document-classifier calibration set is synthetic, versioned, and
 loaded through a typed contract. It covers all supported document types without
 including personal or real clinical data. See `docs/CALIBRATION_DATASET.md`.
+Use `evaluate-rizzo` to assess the configured local Rizzo Flow endpoint without
+fallback and to enforce a minimum exact classification accuracy.
 
 ## Structured output
 All extraction uses versioned JSON Schema/Pydantic models. Invalid output gets bounded retry, then ReviewTask.

@@ -42,6 +42,11 @@ The versioned document-classifier calibration dataset is wholly synthetic and
 ships with the API image. Its typed loader rejects invalid, duplicate, or
 incomplete data before a future local Rizzo evaluation can run.
 
+With `RIZZO_FLOW_ENABLED=true` and a trusted local endpoint, run
+`docker compose run --rm api evaluate-rizzo --minimum-accuracy 0.95` to measure
+Rizzo directly. The command has no LM Studio fallback, returns a non-zero status
+when the threshold is not met, and emits no calibration input text.
+
 ## AI stack
 - LM Studio via OpenAI-compatible API
 - configured primary model: `qwen3.8-27b-abliterated-mtplx-optimized-speed`

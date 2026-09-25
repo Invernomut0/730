@@ -1,0 +1,1 @@
+"""HealthDocs API application package."""

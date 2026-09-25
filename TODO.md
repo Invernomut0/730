@@ -92,7 +92,7 @@
 - [x] AIExecution audit
 - [x] embedding provider
 - [x] calibration dataset
-- [ ] evaluate-rizzo command
+- [x] evaluate-rizzo command
 
 ## P2 Security / backup
 - [ ] HTTPS LAN guide

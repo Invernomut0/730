@@ -1,6 +1,6 @@
 [project]
 name = "healthdocs-api"
-version = "0.1.21"
+version = "0.1.22"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
@@ -20,6 +20,12 @@ dependencies = [
   "pwdlib[argon2]>=0.3",
   "itsdangerous>=2.2"
 ]
+
+[project.scripts]
+evaluate-rizzo = "app.commands.evaluate_rizzo:main"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "pytest-asyncio>=0.24"]
