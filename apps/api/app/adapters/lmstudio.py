@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from typing import Any, Protocol
 
@@ -57,6 +58,33 @@ def parse_embedding_response(payload: dict[str, Any], expected_count: int) -> li
     return vectors
 
 
+def parse_structured_completion_content(content: str) -> dict[str, Any]:
+    """Parse a JSON object, accepting an optional Markdown JSON fence."""
+    normalized = content.strip()
+    if normalized.startswith("```"):
+        lines = normalized.splitlines()
+        if len(lines) < 3 or not lines[-1].strip().startswith("```"):
+            raise ValueError("Structured completion has an incomplete Markdown fence.")
+        normalized = "\n".join(lines[1:-1]).strip()
+    payload = json.loads(normalized)
+    if not isinstance(payload, dict):
+        raise TypeError("Structured completion must be a JSON object.")
+    return payload
+
+
+def structured_completion_payload(model: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
+    """Build a text-mode request that still gives LM Studio the JSON schema."""
+    schema_text = json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
+    return {
+        "model": model,
+        "messages": [{"role": "user", "content": f"{prompt}\n\nReturn only one JSON object matching this schema:\n{schema_text}"}],
+        # LM Studio's JSON-schema mode can return an empty `content` field
+        # for reasoning models. Pydantic still validates this JSON locally.
+        "response_format": {"type": "text"},
+        "temperature": 0,
+    }
+
+
 class LMStudioProvider:
     """Small, bounded-retry client isolated from domain services."""
 
@@ -86,20 +114,15 @@ class LMStudioProvider:
         if not self._settings.lmstudio_main_model:
             raise LLMUnavailable("No main LM Studio model is configured.")
         headers = {"Authorization": f"Bearer {self._settings.lmstudio_api_token}"} if self._settings.lmstudio_api_token else {}
-        payload = {
-            "model": self._settings.lmstudio_main_model,
-            "messages": [{"role": "user", "content": prompt}],
-            "response_format": {"type": "json_schema", "json_schema": {"name": "extraction", "schema": schema}},
-            "temperature": 0,
-        }
+        payload = structured_completion_payload(self._settings.lmstudio_main_model, prompt, schema)
         try:
-            async with httpx.AsyncClient(timeout=45) as client:
+            async with httpx.AsyncClient(timeout=self._settings.lmstudio_request_timeout_seconds) as client:
                 response = await client.post(f"{str(self._settings.lmstudio_base_url).rstrip('/')}/chat/completions", json=payload, headers=headers)
                 response.raise_for_status()
                 content = response.json()["choices"][0]["message"]["content"]
                 if not isinstance(content, str):
                     raise TypeError("Non-string model output")
-                return httpx.Response(200, content=content).json()
+                return parse_structured_completion_content(content)
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
             raise LLMUnavailable("LM Studio structured completion failed.") from error
 

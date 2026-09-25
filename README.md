@@ -90,6 +90,19 @@ permissions. Adjust the multipart allowance with
 `MAX_UPLOAD_REQUEST_OVERHEAD_BYTES` only when a trusted proxy adds larger
 request metadata.
 
+Structured extraction uses the configured local LM Studio model and allows 180
+seconds by default, which accommodates larger models running on local hardware.
+Set `LMSTUDIO_REQUEST_TIMEOUT_SECONDS` to a positive value if the local model
+needs a different bound. Exact duplicate uploads are retained as immutable
+records but deliberately do not invoke OCR or the LLM a second time.
+
+LM Studio reasoning models that leave the OpenAI JSON-schema `content` field
+empty are requested in text mode instead; the API then parses JSON only and
+validates it against the same Pydantic extraction schema before persistence. The
+schema is included directly in the local prompt in this compatibility mode.
+Unambiguous Italian dates returned by the model (`GG/MM/AAAA` and `GG-MM-AAAA`)
+are normalized before schema validation; ambiguous date formats remain rejected.
+
 Use the **Famiglia** panel to create a household and household members before
 uploading clinical documents. Fiscal codes are normalized and shape-validated
 at the API boundary; their use never collapses patient, payer and fiscal-holder

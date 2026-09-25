@@ -22,7 +22,16 @@ async def structure_document(db: Session, document: Document, text: str, provide
     prompt_name = "prescription-extractor" if document.document_type == DocumentType.PRESCRIPTION else "invoice-extractor"
     prompt_path = Path("/prompts") / prompt_name / "v1.md"
     prompt = f"{prompt_path.read_text()}\n\nDocument text:\n{text}"
-    execution = AIExecution(document_id=document.id, provider="lmstudio", model="", prompt_name=prompt_name, prompt_version="v1", schema_version="v1", input_hash=hashlib.sha256(text.encode()).hexdigest(), status="STARTED")
+    execution = AIExecution(
+        document_id=document.id,
+        provider="lmstudio",
+        model=provider.model_id,
+        prompt_name=prompt_name,
+        prompt_version="v1",
+        schema_version="v1",
+        input_hash=hashlib.sha256(text.encode()).hexdigest(),
+        status="STARTED",
+    )
     db.add(execution)
     db.commit()
     started = time.monotonic()
@@ -35,7 +44,6 @@ async def structure_document(db: Session, document: Document, text: str, provide
         db.commit()
         raise LLMUnavailable("Structured extraction was unavailable or invalid.") from error
     execution.status = "SUCCEEDED"
-    execution.model = provider.model_id
     execution.duration_ms = int((time.monotonic() - started) * 1000)
     if isinstance(extracted, PrescriptionExtraction):
         patient = resolve_patient(db, extracted.patient_fiscal_code.value if extracted.patient_fiscal_code else None, extracted.patient.value if extracted.patient else None)

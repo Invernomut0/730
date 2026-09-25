@@ -5,7 +5,21 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def normalize_italian_date(value: object) -> object:
+    """Convert unambiguous Italian day-first dates to ISO-compatible values."""
+    if not isinstance(value, str):
+        return value
+    parts = value.replace("/", "-").split("-")
+    if len(parts) == 3:
+        try:
+            day, month, year = (int(part) for part in parts)
+            return date(year, month, day)
+        except ValueError:
+            pass
+    return value
 
 
 class EvidenceValue(BaseModel):
@@ -32,6 +46,11 @@ class PrescriptionExtraction(BaseModel):
     requested_services: list[EvidenceValue] = Field(default_factory=list)
     prescribed_drugs: list[EvidenceValue] = Field(default_factory=list)
 
+    @field_validator("document_date", mode="before")
+    @classmethod
+    def normalize_document_date(cls, value: object) -> object:
+        return normalize_italian_date(value)
+
 
 class InvoiceService(BaseModel):
     description: EvidenceValue
@@ -53,3 +72,8 @@ class InvoiceExtraction(BaseModel):
     total_amount: Decimal | None = None
     payment_method: EvidenceValue | None = None
     payment_traceability_hint: EvidenceValue | None = None
+
+    @field_validator("invoice_date", mode="before")
+    @classmethod
+    def normalize_invoice_date(cls, value: object) -> object:
+        return normalize_italian_date(value)
