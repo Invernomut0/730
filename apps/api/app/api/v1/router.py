@@ -56,6 +56,7 @@ from app.services.insurance import evaluate_specialist_and_diagnostics, export_p
 from app.services.identity import normalize_fiscal_code
 from app.services.audit import record_audit
 from app.core.security import verify_password
+from app.services.auth_rate_limit import LoginRateLimitUnavailable, clear_login_attempts, consume_login_attempt
 from app.services.storage import ImmutableStorage, UnsupportedDocument, UploadTooLarge, validate_declared_request_size
 from app.services.thumbnails import thumbnail_path
 from app.services.reimbursements import allocate_reimbursement, out_of_pocket
@@ -94,14 +95,27 @@ def health() -> dict[str, str]:
 
 
 @router.post("/auth/login")
-def login(payload: LoginRequest, request: Request, settings: Settings = Depends(get_settings)) -> dict[str, str]:
+async def login(payload: LoginRequest, request: Request, settings: Settings = Depends(get_settings)) -> dict[str, str]:
     """Create a local authenticated session when LAN authentication is enabled."""
     if not settings.auth_enabled:
         raise HTTPException(status_code=409, detail="Authentication is disabled in this environment.")
     if not settings.auth_password_hash or not settings.session_secret:
         raise HTTPException(status_code=503, detail="Authentication is not securely configured.")
+    client_host = request.client.host if request.client else "unknown"
+    try:
+        permitted = await consume_login_attempt(
+            settings.redis_url, client_host, settings.login_rate_limit_attempts, settings.login_rate_limit_window_seconds
+        )
+    except LoginRateLimitUnavailable as error:
+        raise HTTPException(status_code=503, detail="Login protection is unavailable.") from error
+    if not permitted:
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
     if not verify_password(payload.password, settings.auth_password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials.")
+    try:
+        await clear_login_attempts(settings.redis_url, client_host)
+    except LoginRateLimitUnavailable as error:
+        raise HTTPException(status_code=503, detail="Login protection is unavailable.") from error
     request.session["authenticated"] = True
     return {"status": "authenticated"}
 

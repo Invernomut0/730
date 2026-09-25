@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     auth_enabled: bool = False
     auth_password_hash: str = ""
     session_secret: str = ""
+    login_rate_limit_attempts: int = Field(default=5, gt=0)
+    login_rate_limit_window_seconds: int = Field(default=900, gt=0)
+    backup_root: Path = Path("/backups")
+    backup_encryption_key: str = ""
+    google_drive_access_token: str = ""
+    google_drive_folder_id: str = ""
 
     lmstudio_base_url: HttpUrl = "http://host.docker.internal:1234/v1"
     lmstudio_api_token: str = ""

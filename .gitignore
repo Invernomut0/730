@@ -13,4 +13,5 @@ node_modules/
 dist/
 coverage/
 data/
+backups/
 *.enc

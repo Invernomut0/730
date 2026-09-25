@@ -97,12 +97,12 @@
 ## P2 Security / backup
 - [x] HTTPS LAN guide
 - [x] upload hardening
-- [ ] auth rate limiting
-- [ ] log-redaction tests
-- [ ] encrypted local backup
-- [ ] Google Drive encrypted upload
-- [ ] restore verification
-- [ ] key-management guide
+- [x] auth rate limiting
+- [x] log-redaction tests
+- [x] encrypted local backup
+- [x] Google Drive encrypted upload
+- [x] restore verification
+- [x] key-management guide
 
 ## P3 Quality
 - [ ] synthetic fixture generator

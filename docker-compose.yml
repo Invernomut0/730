@@ -41,6 +41,7 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/data
+      - ./backups:/backups
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   worker:
@@ -55,6 +56,7 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/data
+      - ./backups:/backups
     command: ["arq", "app.workers.jobs.WorkerSettings"]
 
   web:

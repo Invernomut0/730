@@ -1,6 +1,6 @@
 [project]
 name = "healthdocs-api"
-version = "0.1.24"
+version = "0.1.25"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
@@ -18,11 +18,15 @@ dependencies = [
   "arq>=0.26",
   "pyyaml>=6.0",
   "pwdlib[argon2]>=0.3",
-  "itsdangerous>=2.2"
+  "itsdangerous>=2.2",
+  "cryptography>=43"
 ]
 
 [project.scripts]
 evaluate-rizzo = "app.commands.evaluate_rizzo:main"
+healthdocs-backup = "app.commands.backup:backup_main"
+healthdocs-verify-backup = "app.commands.backup:verify_main"
+healthdocs-upload-backup = "app.commands.backup:upload_main"
 
 [tool.setuptools.packages.find]
 include = ["app*"]

@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 WORKDIR /app
 RUN apt-get update \
-	&& apt-get install --no-install-recommends --yes tesseract-ocr \
+	&& apt-get install --no-install-recommends --yes tesseract-ocr postgresql-client \
 	&& rm -rf /var/lib/apt/lists/*
 COPY apps/api/pyproject.toml .
 RUN pip install --no-cache-dir ".[dev]"

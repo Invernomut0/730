@@ -99,6 +99,17 @@ Keep `.env` out of source control. Model endpoints must be local or trusted
 LAN endpoints; normal application logs must not include document text or
 clinical fields.
 
+## Encrypted backup
+
+Set a unique `BACKUP_ENCRYPTION_KEY` in the untracked `.env`, then run
+`docker compose run --rm api healthdocs-backup`. Verify the resulting `.hdbak`
+file with `healthdocs-verify-backup` before using `healthdocs-upload-backup` to
+send the ciphertext to Google Drive. Local archives contain both the immutable
+data volume and a PostgreSQL custom dump; verification authenticates the archive
+and runs a non-destructive `pg_restore --list` check on that dump. Follow
+`docs/KEY_MANAGEMENT.md` for key generation, rotation, recovery copies, and
+incident handling.
+
 ## Validation
 
 The containerized test suite uses synthetic data and validates immutable
@@ -121,6 +132,10 @@ the service on a LAN, set `AUTH_ENABLED=true`, an Argon2 value in
 `.env` file. The API then requires a signed `HttpOnly`, `SameSite=Lax` session
 cookie for all application routes; health checks and login remain available for
 bootstrap. Never commit the password hash or session secret.
+
+Failed login attempts are throttled in Redis by a non-reversible client-address
+hash. Configure `LOGIN_RATE_LIMIT_ATTEMPTS` and
+`LOGIN_RATE_LIMIT_WINDOW_SECONDS` in the untracked `.env` for LAN policy.
 
 ## HTTPS LAN deployment
 
