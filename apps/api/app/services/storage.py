@@ -34,7 +34,11 @@ def sniff_mime(content: bytes) -> str:
         return "image/png"
     if content.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
-    raise UnsupportedDocument("Only PDF, PNG, and JPEG uploads are supported in this milestone.")
+    if content.startswith((b"II*\x00", b"MM\x00*")):
+        return "image/tiff"
+    if content[4:8] == b"ftyp" and content[8:12] in {b"heic", b"heix", b"hevc", b"hevx", b"mif1"}:
+        return "image/heic"
+    raise UnsupportedDocument("Only PDF, PNG, JPEG, TIFF, and HEIC uploads are supported.")
 
 
 def sanitize_filename(filename: str | None) -> str:
@@ -56,7 +60,13 @@ class ImmutableStorage:
             raise UnsupportedDocument("Empty uploads are not allowed.")
         mime_type = sniff_mime(content)
         digest = hashlib.sha256(content).hexdigest()
-        suffix = {"application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg"}[mime_type]
+        suffix = {
+            "application/pdf": ".pdf",
+            "image/png": ".png",
+            "image/jpeg": ".jpg",
+            "image/tiff": ".tiff",
+            "image/heic": ".heic",
+        }[mime_type]
         storage_key = f"originals/{digest[:2]}/{uuid.uuid4()}{suffix}"
         destination = self._settings.storage_root / storage_key
         destination.parent.mkdir(parents=True, exist_ok=True)

@@ -36,7 +36,7 @@
 ## P1 Document platform
 - [x] Watched directory
 - [x] File-write stability detection
-- [ ] TIFF/HEIC
+- [x] TIFF/HEIC
 - [ ] Thumbnails
 - [ ] OCR bbox persistence
 - [ ] Viewer highlights

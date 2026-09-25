@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings
-from app.services.storage import ImmutableStorage, UnsupportedDocument
+from app.services.storage import ImmutableStorage, UnsupportedDocument, sniff_mime
 
 
 def test_store_pdf_uses_hash_and_immutable_non_user_path(tmp_path: Path) -> None:
@@ -19,3 +19,14 @@ def test_store_pdf_uses_hash_and_immutable_non_user_path(tmp_path: Path) -> None
 def test_store_rejects_unrecognized_binary(tmp_path: Path) -> None:
     with pytest.raises(UnsupportedDocument, match="Only PDF"):
         ImmutableStorage(Settings(storage_root=tmp_path)).store(b"not a supported file", "document.exe")
+
+
+@pytest.mark.parametrize(
+    ("content", "mime_type"),
+    [
+        (b"II*\x00synthetic fixture", "image/tiff"),
+        (b"\x00\x00\x00\x18ftypheicsynthetic fixture", "image/heic"),
+    ],
+)
+def test_sniff_mime_recognizes_tiff_and_heic(content: bytes, mime_type: str) -> None:
+    assert sniff_mime(content) == mime_type

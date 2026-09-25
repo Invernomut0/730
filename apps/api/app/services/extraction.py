@@ -7,9 +7,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import fitz
+from PIL import Image, ImageSequence
+from pillow_heif import register_heif_opener
 
 from app.adapters.ocr import OCRProvider
 from app.models.entities import DocumentType
+
+register_heif_opener()
 
 
 class ExtractionFailed(RuntimeError):
@@ -40,6 +44,14 @@ def text_is_insufficient(pages: list[ExtractedPage]) -> bool:
 def extract_with_ocr(path: Path, mime_type: str, provider: OCRProvider) -> list[ExtractedPage]:
     """Extract OCR text locally from a raster image or rendered PDF pages."""
     if mime_type.startswith("image/"):
+        if mime_type in {"image/tiff", "image/heic"}:
+            with Image.open(path) as source, TemporaryDirectory() as directory:
+                pages: list[ExtractedPage] = []
+                for number, frame in enumerate(ImageSequence.Iterator(source), start=1):
+                    rendered = Path(directory) / f"page-{number}.png"
+                    frame.convert("RGB").save(rendered, "PNG")
+                    pages.append(ExtractedPage(number, provider.extract(rendered), 0.7))
+                return pages
         return [ExtractedPage(1, provider.extract(path), 0.7)]
     try:
         with fitz.open(path) as pdf, TemporaryDirectory() as directory:

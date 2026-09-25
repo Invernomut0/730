@@ -104,6 +104,10 @@ ingestion, avoiding partial writes. Accepted files are immutably stored and
 then moved to `data/inbox/processed`; unsupported input is moved to
 `data/quarantine`.
 
+Supported originals are PDF, PNG, JPEG, TIFF, and HEIC. TIFF and HEIC pages
+are normalized to temporary PNG files only for local OCR; their stored
+originals remain unchanged.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,
