@@ -41,6 +41,7 @@ class DocumentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     original_filename: str
+    logical_name: str | None
     mime_type: str
     byte_size: int
     sha256: str

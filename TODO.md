@@ -38,10 +38,10 @@
 - [x] File-write stability detection
 - [x] TIFF/HEIC
 - [x] Thumbnails
-- [ ] OCR bbox persistence
-- [ ] Viewer highlights
-- [ ] Logical renaming
-- [ ] duplicate/re-scan detection
+- [x] OCR bbox persistence
+- [x] Viewer highlights
+- [x] Logical renaming
+- [x] duplicate/re-scan detection
 
 ## P1 Pharmacy
 - [ ] Receipt schema / ReceiptLine

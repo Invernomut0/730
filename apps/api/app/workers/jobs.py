@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 from uuid import UUID
+from pathlib import Path
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -37,6 +38,10 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
         document = db.get(Document, UUID(document_id))
         if document is None or document.state in {DocumentState.COMPLETE, DocumentState.REVIEW_REQUIRED}:
             return
+        if document.duplicate_of_id is not None:
+            document.state = DocumentState.COMPLETE
+            db.commit()
+            return
         document.state = DocumentState.EXTRACTING
         db.commit()
         path = get_settings().storage_root / document.storage_key
@@ -49,7 +54,7 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             db.commit()
             pages = extract_with_ocr(path, document.mime_type, TesseractOCRProvider())
         for page in pages:
-            db.add(DocumentPage(document_id=document.id, page_number=page.page_number, text=page.text, source="ocr" if document.state == DocumentState.OCR else "native", confidence=page.confidence))
+            db.add(DocumentPage(document_id=document.id, page_number=page.page_number, text=page.text, source="ocr" if document.state == DocumentState.OCR else "native", confidence=page.confidence, blocks=page.blocks))
         text = "\n".join(page.text for page in pages)
         document.state = DocumentState.CLASSIFYING
         document.document_type = classify_document(text)
@@ -71,6 +76,9 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             except LLMUnavailable:
                 document.state = DocumentState.REVIEW_REQUIRED
                 db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "structured_extraction_unavailable_or_invalid"}))
+        extension = Path(document.original_filename).suffix.lower() or ".bin"
+        date_part = document.document_date.isoformat() if document.document_date else "undated"
+        document.logical_name = f"{date_part}_{document.document_type.value.lower()}_{document.sha256[:8]}{extension}"
         db.commit()
     except (ExtractionFailed, OCRFailed):
         db.rollback()

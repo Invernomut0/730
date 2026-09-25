@@ -88,6 +88,7 @@ class Document(Timestamped, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     original_filename: Mapped[str] = mapped_column(String(255))
+    logical_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     mime_type: Mapped[str] = mapped_column(String(100))
     byte_size: Mapped[int]
     sha256: Mapped[str] = mapped_column(String(64), index=True)

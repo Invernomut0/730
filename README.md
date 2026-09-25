@@ -112,6 +112,15 @@ The processing worker creates an idempotent, bounded PNG thumbnail from the
 first PDF page or raster original. It is available at
 `GET /api/v1/documents/{document_id}/thumbnail` once processing has started.
 
+## Document viewer and archive names
+
+Tesseract OCR persists word-level bounding boxes on each document page. The
+viewer loads page data from `GET /api/v1/documents/{document_id}/pages` and
+shows the recognized terms alongside the thumbnail. After processing, each
+document receives a deterministic logical name (`date_type_hash.ext`) while
+retaining the immutable original and source filename. Exact SHA-256 duplicates
+are linked and are not processed again during re-scans.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

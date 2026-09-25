@@ -18,6 +18,7 @@ from app.db.session import get_db
 from app.models.entities import (
     Document,
     DocumentLink,
+    DocumentPage,
     ExpenseDocument,
     Household,
     HouseholdMember,
@@ -58,6 +59,7 @@ def document_response(document: Document, db: Session) -> DocumentResponse:
     return DocumentResponse(
         id=document.id,
         original_filename=document.original_filename,
+        logical_name=document.logical_name,
         mime_type=document.mime_type,
         byte_size=document.byte_size,
         sha256=document.sha256,
@@ -170,6 +172,17 @@ def document_thumbnail(
     if not preview.is_file():
         raise HTTPException(status_code=404, detail="Thumbnail is not available yet.")
     return FileResponse(preview, media_type="image/png")
+
+
+@router.get("/documents/{document_id}/pages")
+def document_pages(document_id: UUID, db: Session = Depends(get_db)) -> list[dict[str, object]]:
+    """Return local OCR text and bounding boxes for the document viewer."""
+    if db.get(Document, document_id) is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return [
+        {"page_number": page.page_number, "text": page.text or "", "source": page.source, "confidence": page.confidence, "blocks": page.blocks}
+        for page in db.scalars(select(DocumentPage).where(DocumentPage.document_id == document_id).order_by(DocumentPage.page_number))
+    ]
 
 
 @router.post("/households", status_code=status.HTTP_201_CREATED)

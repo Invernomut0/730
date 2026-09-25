@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import subprocess
+import csv
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 
 class OCRFailed(RuntimeError):
     """Raised when the configured local OCR engine cannot extract text."""
+
+
+@dataclass(frozen=True)
+class OCRResult:
+    text: str
+    blocks: dict[str, object]
 
 
 class OCRProvider(Protocol):
@@ -21,9 +29,13 @@ class TesseractOCRProvider:
     """Run the locally installed Tesseract binary without cloud transport."""
 
     def extract(self, image_path: Path) -> str:
+        return self.extract_with_boxes(image_path).text
+
+    def extract_with_boxes(self, image_path: Path) -> OCRResult:
+        """Return OCR text plus word-level pixel boxes from Tesseract TSV output."""
         try:
             result = subprocess.run(
-                ["tesseract", str(image_path), "stdout", "-l", "ita+eng"],
+                ["tesseract", str(image_path), "stdout", "-l", "ita+eng", "tsv"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -31,4 +43,10 @@ class TesseractOCRProvider:
             )
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
             raise OCRFailed("Local Tesseract OCR failed.") from error
-        return result.stdout.strip()
+        rows = csv.DictReader(result.stdout.splitlines(), delimiter="\t")
+        words = [
+            {"text": row["text"].strip(), "left": int(row["left"]), "top": int(row["top"]), "width": int(row["width"]), "height": int(row["height"]), "confidence": float(row["conf"])}
+            for row in rows
+            if row.get("text", "").strip() and row.get("conf", "-1") != "-1"
+        ]
+        return OCRResult(text=" ".join(str(word["text"]) for word in words), blocks={"words": words})

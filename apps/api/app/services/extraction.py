@@ -16,6 +16,15 @@ from app.models.entities import DocumentType
 register_heif_opener()
 
 
+def _ocr_page(provider: OCRProvider, path: Path, page_number: int) -> ExtractedPage:
+    """Preserve bounding boxes when the configured OCR provider supports them."""
+    with_boxes = getattr(provider, "extract_with_boxes", None)
+    if with_boxes is None:
+        return ExtractedPage(page_number, provider.extract(path), 0.7)
+    result = with_boxes(path)
+    return ExtractedPage(page_number, result.text, 0.7, result.blocks)
+
+
 class ExtractionFailed(RuntimeError):
     """Raised when native text cannot be extracted from a supported PDF."""
 
@@ -25,6 +34,7 @@ class ExtractedPage:
     page_number: int
     text: str
     confidence: float
+    blocks: dict[str, object] | None = None
 
 
 def extract_pdf_text(path: Path) -> list[ExtractedPage]:
@@ -50,9 +60,9 @@ def extract_with_ocr(path: Path, mime_type: str, provider: OCRProvider) -> list[
                 for number, frame in enumerate(ImageSequence.Iterator(source), start=1):
                     rendered = Path(directory) / f"page-{number}.png"
                     frame.convert("RGB").save(rendered, "PNG")
-                    pages.append(ExtractedPage(number, provider.extract(rendered), 0.7))
+                    pages.append(_ocr_page(provider, rendered, number))
                 return pages
-        return [ExtractedPage(1, provider.extract(path), 0.7)]
+        return [_ocr_page(provider, path, 1)]
     try:
         with fitz.open(path) as pdf, TemporaryDirectory() as directory:
             pages: list[ExtractedPage] = []
@@ -60,7 +70,7 @@ def extract_with_ocr(path: Path, mime_type: str, provider: OCRProvider) -> list[
                 image = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
                 rendered = Path(directory) / f"page-{number}.png"
                 image.save(rendered)
-                pages.append(ExtractedPage(number, provider.extract(rendered), 0.7))
+                pages.append(_ocr_page(provider, rendered, number))
             return pages
     except (fitz.FileDataError, RuntimeError) as error:
         raise ExtractionFailed("OCR rendering failed.") from error
