@@ -128,8 +128,10 @@ roles into a single identity.
 The Medical Event workspace uses XYFlow to show persisted document links,
 confidence and evidence. Its insurance panel evaluates the versioned 2026
 `specialist_and_diagnostics` rule as a **candidate only**, displaying missing
-documentation rather than claiming a reimbursement. Open review tasks can be
-resolved manually through the workspace.
+documentation rather than claiming a reimbursement. Link reviews show the two
+documents, score, supporting evidence and conflicts; an operator can reject the
+pair or manually confirm it, which creates an auditable confirmed event and
+link.
 
 ## Privacy
 

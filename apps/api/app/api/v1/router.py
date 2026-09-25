@@ -23,9 +23,12 @@ from app.models.entities import (
     Household,
     HouseholdMember,
     MedicalEvent,
+    EventStatus,
+    DocumentType,
     PharmacyReceipt,
     Prescription,
     ReviewTask,
+    ReviewType,
     Reimbursement,
     PaymentEvidence,
     Precompiled730Row,
@@ -471,6 +474,47 @@ def resolve_review_task(task_id: UUID, payload: ReviewResolution, db: Session = 
     task = db.get(ReviewTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Review task not found.")
+    if payload.resolution.get("action") == "confirmed_related" and task.type == ReviewType.LINK_AMBIGUOUS:
+        candidate_id = task.context.get("candidate_document_id")
+        if not isinstance(candidate_id, str):
+            raise HTTPException(status_code=422, detail="Link review has no candidate document.")
+        source_document = db.get(Document, task.entity_id)
+        candidate_document = db.get(Document, UUID(candidate_id))
+        if source_document is None or candidate_document is None:
+            raise HTTPException(status_code=422, detail="A reviewed document is no longer available.")
+        prescription_document, invoice_document = (
+            (source_document, candidate_document)
+            if source_document.document_type == DocumentType.PRESCRIPTION
+            else (candidate_document, source_document)
+        )
+        if prescription_document.document_type != DocumentType.PRESCRIPTION or invoice_document.document_type != DocumentType.INVOICE:
+            raise HTTPException(status_code=422, detail="A link review must pair a prescription with an invoice.")
+        if db.scalar(select(DocumentLink).where(DocumentLink.source_document_id == prescription_document.id, DocumentLink.target_document_id == invoice_document.id)) is None:
+            prescription = db.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id))
+            expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id))
+            evidence = task.context.get("evidence")
+            conflicts = task.context.get("conflicts")
+            score = task.context.get("score")
+            evidence_values = [item for item in evidence if isinstance(item, str)] if isinstance(evidence, list) else []
+            conflict_values = [item for item in conflicts if isinstance(item, str)] if isinstance(conflicts, list) else []
+            confidence = float(score) if isinstance(score, int | float) else 0.0
+            event = MedicalEvent(
+                household_member_id=(prescription.patient_id if prescription else None) or (expense.patient_id if expense else None),
+                title="Manually confirmed medical care",
+                status=EventStatus.CONFIRMED,
+                confidence=confidence,
+            )
+            db.add(event)
+            db.flush()
+            db.add(DocumentLink(
+                source_document_id=prescription_document.id,
+                target_document_id=invoice_document.id,
+                medical_event_id=event.id,
+                relation_type="MANUALLY_CONFIRMED",
+                score=confidence,
+                evidence=[*evidence_values, "manual_review_confirmed"],
+                conflicts=conflict_values,
+            ))
     task.status = "RESOLVED"
     task.resolution = payload.resolution
     task.resolved_at = datetime.now(UTC)

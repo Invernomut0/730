@@ -31,6 +31,7 @@ export default function Home() {
   const [message, setMessage] = useState("Carica una prescrizione o fattura per iniziare.");
   const [uploading, setUploading] = useState(false);
   const [pages, setPages] = useState<DocumentPage[]>([]);
+  const [selectedWord, setSelectedWord] = useState<WordBox>();
   const [resetConfirmation, setResetConfirmation] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
@@ -55,6 +56,7 @@ export default function Home() {
   }
   async function selectDocument(id: string): Promise<void> {
     setSelectedDocumentId(id);
+    setSelectedWord(undefined);
     const response = await fetch(`${API}/api/v1/documents/${id}/pages`);
     setPages(response.ok ? await response.json() as DocumentPage[] : []);
   }
@@ -94,7 +96,7 @@ export default function Home() {
           <button onClick={() => void selectDocument(document.id)} className="document-name"><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className="document-meta document-state">{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span><button className="delete-button" type="button" onClick={() => void deleteDocument(document)}>Elimina</button>
         </article>)}
       </div>
-      {documents.find(item => item.id === selectedDocumentId) && <section className="panel viewer"><div><h3>Anteprima originale</h3><div className="viewer-preview-wrap"><img className="viewer-preview" alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} />{(pages[0]?.blocks?.words ?? []).map((word, index) => <span aria-hidden="true" className="word-box" key={`${word.text}-${index}`} style={{ left: `${word.left * 100}%`, top: `${word.top * 100}%`, width: `${word.width * 100}%`, height: `${word.height * 100}%` }} title={word.text} />)}</div></div><div className="viewer-copy"><h3>{documents.find(item => item.id === selectedDocumentId)?.extraction ? "Campi estratti" : "Testo estratto"}</h3><p>{pages[0]?.blocks?.words?.length ? `${pages[0].blocks.words.length} parole mappate sull'anteprima.` : "Coordinate delle parole non ancora disponibili."}</p><pre>{documents.find(item => item.id === selectedDocumentId)?.extraction ? JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction, null, 2) : pages.map(page => page.text).join("\n\n") || "Testo in attesa di estrazione."}</pre></div></section>}
+      {documents.find(item => item.id === selectedDocumentId) && <section className="panel viewer"><div><h3>Anteprima originale</h3><div className="viewer-preview-wrap"><img className="viewer-preview" alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} />{(pages[0]?.blocks?.words ?? []).map((word, index) => <button aria-label={`Mostra dettaglio parola ${word.text}`} className={`word-box${selectedWord === word ? " selected" : ""}`} key={`${word.text}-${index}`} onClick={() => setSelectedWord(word)} style={{ left: `${word.left * 100}%`, top: `${word.top * 100}%`, width: `${word.width * 100}%`, height: `${word.height * 100}%` }} title={word.text} type="button" />)}</div></div><div className="viewer-copy"><h3>{documents.find(item => item.id === selectedDocumentId)?.extraction ? "Campi estratti" : "Testo estratto"}</h3><p>{pages[0]?.blocks?.words?.length ? `${pages[0].blocks.words.length} parole mappate sull'anteprima.` : "Coordinate delle parole non ancora disponibili."}</p>{selectedWord && <div className="word-detail"><strong>{selectedWord.text}</strong><span>Pagina 1 · x {Math.round(selectedWord.left * 100)}% · y {Math.round(selectedWord.top * 100)}% · {Math.round(selectedWord.width * 100)}% × {Math.round(selectedWord.height * 100)}%</span></div>}<pre>{documents.find(item => item.id === selectedDocumentId)?.extraction ? JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction, null, 2) : pages.map(page => page.text).join("\n\n") || "Testo in attesa di estrazione."}</pre></div></section>}
     </section>
     <FamilyPanel />
     <Precompiled730Panel />
