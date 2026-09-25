@@ -148,6 +148,13 @@ require a reviewed, sourced `TaxRuleSet` and traceable `PaymentEvidence`; the
 engine deliberately preserves the gross amount unless the reviewed rule
 explicitly states that reimbursements reduce the tax base.
 
+## Pre-filled 730
+
+Import a local UTF-8 CSV with `expense_date`, `amount`, `description`, and an
+optional `fiscal_code`. HealthDocs normalizes rows, matches only unique local tax
+allocations, and presents unmatched or ambiguous entries in the Precompilata 730
+panel; it never uses authenticated scraping or SPID/CIE credentials.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

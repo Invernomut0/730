@@ -28,6 +28,7 @@ from app.models.entities import (
     ReviewTask,
     Reimbursement,
     PaymentEvidence,
+    Precompiled730Row,
 )
 from app.schemas.api import (
     DocumentResponse,
@@ -59,6 +60,7 @@ from app.services.storage import ImmutableStorage, UnsupportedDocument
 from app.services.thumbnails import thumbnail_path
 from app.services.reimbursements import allocate_reimbursement, out_of_pocket
 from app.services.tax import evaluate_expense
+from app.services.precompiled_730 import import_csv, reconcile
 from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aifa_csv, match_receipt_lines
 
 router = APIRouter(prefix="/api/v1")
@@ -279,6 +281,24 @@ def evaluate_tax_expense(tax_year: int, expense_id: UUID, taxpayer_id: UUID, db:
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return {"id": str(allocation.id), "eligible_amount": str(allocation.eligible_amount), "status": allocation.status}
+
+
+@router.post("/tax/{tax_year}/precompiled/import", status_code=status.HTTP_201_CREATED)
+async def import_precompiled_730(tax_year: int, file: UploadFile = File(...), db: Session = Depends(get_db)) -> dict[str, str]:
+    """Import a local UTF-8 pre-filled 730 CSV; no authenticated scraping is used."""
+    imported = import_csv(db, tax_year, file.filename or "precompiled.csv", await file.read())
+    return {"id": str(imported.id)}
+
+
+@router.post("/tax/{tax_year}/precompiled/reconcile")
+def reconcile_precompiled_730(tax_year: int, db: Session = Depends(get_db)) -> dict[str, int]:
+    return {"matched": reconcile(db, tax_year)}
+
+
+@router.get("/tax/{tax_year}/reconciliation")
+def precompiled_discrepancies(tax_year: int, db: Session = Depends(get_db)) -> list[dict[str, object]]:
+    """Return only rows requiring a user discrepancy decision."""
+    return [{"id": str(row.id), "amount": str(row.amount), "description": row.normalized_description, "status": row.status} for row in db.scalars(select(Precompiled730Row).where(Precompiled730Row.tax_year == tax_year, Precompiled730Row.status != "MATCHED"))]
 
 
 @router.post("/households", status_code=status.HTTP_201_CREATED)

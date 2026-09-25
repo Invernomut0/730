@@ -80,10 +80,10 @@
 - [x] CAF PDF/CSV/XLSX/ZIP
 
 ## P2 Pre-filled 730
-- [ ] Import
-- [ ] Normalize rows
-- [ ] Matching engine
-- [ ] Discrepancy UI
+- [x] Import
+- [x] Normalize rows
+- [x] Matching engine
+- [x] Discrepancy UI
 
 ## P2 AI / Rizzo
 - [ ] Rizzo Flow adapter + batch typed decisions

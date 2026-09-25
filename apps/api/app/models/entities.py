@@ -244,6 +244,29 @@ class TaxAllocation(Timestamped, Base):
     status: Mapped[str] = mapped_column(String(32), default="REVIEW_REQUIRED")
 
 
+class Precompiled730Import(Timestamped, Base):
+    __tablename__ = "precompiled_730_imports"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tax_year: Mapped[int] = mapped_column(index=True)
+    source_filename: Mapped[str] = mapped_column(String(255))
+    content_hash: Mapped[str] = mapped_column(String(64), unique=True)
+
+
+class Precompiled730Row(Timestamped, Base):
+    __tablename__ = "precompiled_730_rows"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    import_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("precompiled_730_imports.id"), index=True)
+    tax_year: Mapped[int] = mapped_column(index=True)
+    fiscal_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    expense_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    normalized_description: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), default="LOCAL_ONLY")
+    tax_allocation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tax_allocations.id"), nullable=True)
+
+
 class MedicalEvent(Timestamped, Base):
     __tablename__ = "medical_events"
 

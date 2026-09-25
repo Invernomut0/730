@@ -4,6 +4,7 @@ import { ChangeEvent, useEffect, useState } from "react";
 
 import { EventWorkspace } from "./EventWorkspace";
 import { FamilyPanel } from "./FamilyPanel";
+import { Precompiled730Panel } from "./Precompiled730Panel";
 
 type Document = {
   id: string;
@@ -74,6 +75,7 @@ export default function Home() {
       {documents.find(item => item.id === selectedDocumentId) && <section style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 12 }}><h3>Viewer e campi estratti</h3><img alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} style={{ maxWidth: 360, maxHeight: 480, display: "block", marginBottom: 12 }} /><p>{pages.flatMap(page => page.blocks?.words ?? []).map(word => word.text).join(" · ") || "Bounding box OCR non ancora disponibili."}</p><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction ?? { status: "In attesa di estrazione strutturata" }, null, 2)}</pre></section>}
     </section>
     <FamilyPanel />
+    <Precompiled730Panel />
     <EventWorkspace />
   </main>;
 }
