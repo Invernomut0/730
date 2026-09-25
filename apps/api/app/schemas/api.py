@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,6 +10,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class LoginRequest(BaseModel):
     password: str = Field(min_length=1)
+
+
+class DatabaseResetRequest(BaseModel):
+    confirmation: Literal["RESET"]
+
+
+class DatabaseResetResponse(BaseModel):
+    status: Literal["database_reset"]
+
+
+class DeletionResponse(BaseModel):
+    status: Literal["deleted"]
+    documents_deleted: int
 
 
 class HouseholdCreate(BaseModel):

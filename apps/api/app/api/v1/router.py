@@ -31,6 +31,9 @@ from app.models.entities import (
     Precompiled730Row,
 )
 from app.schemas.api import (
+    DatabaseResetRequest,
+    DatabaseResetResponse,
+    DeletionResponse,
     DocumentResponse,
     EventGraph,
     GraphEdge,
@@ -63,6 +66,8 @@ from app.services.reimbursements import allocate_reimbursement, out_of_pocket
 from app.services.tax import evaluate_expense
 from app.services.precompiled_730 import import_csv, reconcile
 from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aifa_csv, match_receipt_lines
+from app.services.database_reset import reset_application_database
+from app.services.deletion import delete_document_group, delete_household
 
 router = APIRouter(prefix="/api/v1")
 
@@ -92,6 +97,13 @@ def document_response(document: Document, db: Session) -> DocumentResponse:
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post("/admin/reset-database", response_model=DatabaseResetResponse)
+def reset_database(payload: DatabaseResetRequest, db: Session = Depends(get_db)) -> DatabaseResetResponse:
+    """Permanently clear all application tables after explicit operator confirmation."""
+    reset_application_database(db)
+    return DatabaseResetResponse(status="database_reset")
 
 
 @router.post("/auth/login")
@@ -197,6 +209,16 @@ async def upload_document(
 @router.get("/documents", response_model=list[DocumentResponse])
 def list_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
     return [document_response(item, db) for item in db.scalars(select(Document).order_by(Document.created_at.desc()))]
+
+
+@router.delete("/documents/{document_id}", response_model=DeletionResponse)
+def delete_document(document_id: UUID, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DeletionResponse:
+    """Remove a document group and all dependent records and local artifacts."""
+    try:
+        count = delete_document_group(db, settings.storage_root, document_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return DeletionResponse(status="deleted", documents_deleted=count)
 
 
 @router.get("/documents/{document_id}/thumbnail")
@@ -357,6 +379,16 @@ def list_households(db: Session = Depends(get_db)) -> list[HouseholdResponse]:
         )
         for household in db.scalars(select(Household).order_by(Household.name))
     ]
+
+
+@router.delete("/households/{household_id}", response_model=DeletionResponse)
+def delete_household_endpoint(household_id: UUID, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DeletionResponse:
+    """Remove one household, its members, and data associated with those members."""
+    try:
+        count = delete_household(db, settings.storage_root, household_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return DeletionResponse(status="deleted", documents_deleted=count)
 
 
 @router.post("/household-members", status_code=status.HTTP_201_CREATED)

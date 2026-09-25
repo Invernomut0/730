@@ -30,6 +30,9 @@ export default function Home() {
   const [message, setMessage] = useState("Carica una prescrizione o fattura per iniziare.");
   const [uploading, setUploading] = useState(false);
   const [pages, setPages] = useState<DocumentPage[]>([]);
+  const [resetConfirmation, setResetConfirmation] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
 
   async function refresh(): Promise<void> {
     const response = await fetch(`${API}/api/v1/documents`);
@@ -54,6 +57,23 @@ export default function Home() {
     const response = await fetch(`${API}/api/v1/documents/${id}/pages`);
     setPages(response.ok ? await response.json() as DocumentPage[] : []);
   }
+  async function deleteDocument(document: Document): Promise<void> {
+    if (!window.confirm(`Eliminare definitivamente ${document.logical_name ?? document.original_filename}?`)) return;
+    const response = await fetch(`${API}/api/v1/documents/${document.id}`, { method: "DELETE" });
+    if (!response.ok) { setMessage("Impossibile eliminare il documento."); return; }
+    setSelectedDocumentId(undefined); setPages([]); setMessage("Documento eliminato definitivamente."); await refresh();
+  }
+  async function resetDatabase(): Promise<void> {
+    if (resetConfirmation !== "RESET") return;
+    setResetting(true);
+    setResetMessage("Eliminazione definitiva in corso…");
+    const response = await fetch(`${API}/api/v1/admin/reset-database`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmation: "RESET" }),
+    });
+    if (!response.ok) { setResetMessage("Reset non riuscito. I dati non sono stati modificati."); setResetting(false); return; }
+    setResetMessage("Database azzerato. Ricaricamento del dossier…");
+    window.location.reload();
+  }
 
   return <main className="app-shell">
     <header className="masthead">
@@ -70,7 +90,7 @@ export default function Home() {
     <section><div className="section-heading"><h2>Documenti elaborati</h2><p className="section-kicker">{documents.length} nel dossier</p></div>
       <div className="document-list">
         {documents.length === 0 ? <p className="empty-state">Nessun documento caricato.</p> : documents.map((document) => <article key={document.id} className="document-row">
-          <button onClick={() => void selectDocument(document.id)} className="document-name"><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className="document-meta document-state">{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span>
+          <button onClick={() => void selectDocument(document.id)} className="document-name"><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className="document-meta document-state">{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span><button className="delete-button" type="button" onClick={() => void deleteDocument(document)}>Elimina</button>
         </article>)}
       </div>
       {documents.find(item => item.id === selectedDocumentId) && <section className="panel viewer"><div><h3>Anteprima originale</h3><img className="viewer-preview" alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} /></div><div className="viewer-copy"><h3>Campi estratti</h3><p>{pages.flatMap(page => page.blocks?.words ?? []).map(word => word.text).join(" · ") || "Bounding box OCR non ancora disponibili."}</p><pre>{JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction ?? { status: "In attesa di estrazione strutturata" }, null, 2)}</pre></div></section>}
@@ -78,5 +98,10 @@ export default function Home() {
     <FamilyPanel />
     <Precompiled730Panel />
     <EventWorkspace />
+    <section className="reset-zone" aria-labelledby="reset-title">
+      <div><p className="eyebrow">ZONA RISERVATA</p><h2 id="reset-title">Azzera il dossier locale</h2><p>Elimina definitivamente tutti i dati del database: documenti, famiglia, eventi, estrazioni, review, cataloghi e audit. I file in <code>data/</code> non vengono rimossi.</p></div>
+      <div className="reset-controls"><label>Digita <strong>RESET</strong> per abilitare il comando<input aria-label="Conferma reset database" value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value)} placeholder="RESET" autoComplete="off" /></label><button className="reset-button" type="button" disabled={resetConfirmation !== "RESET" || resetting} onClick={() => void resetDatabase()}>{resetting ? "Azzeramento…" : "Azzera database"}</button></div>
+      <p className="reset-feedback" aria-live="polite">{resetMessage}</p>
+    </section>
   </main>;
 }

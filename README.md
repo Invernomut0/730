@@ -103,6 +103,19 @@ schema is included directly in the local prompt in this compatibility mode.
 Unambiguous Italian dates returned by the model (`GG/MM/AAAA` and `GG-MM-AAAA`)
 are normalized before schema validation; ambiguous date formats remain rejected.
 
+## Resetting local application data
+
+The bottom of the Inbox contains an **Azzera database** control. Type `RESET`
+to enable it: the action permanently clears every application table (including
+documents, family, extraction records, review tasks, audit events, and local
+catalog imports) while preserving the database schema. It deliberately does
+not remove files from `data/`; remove those separately only when required.
+
+Each document row and family card also has an **Elimina** action. After browser
+confirmation, document deletion removes its dependent records, exact duplicate
+records, original, and thumbnail; household deletion removes its members and
+all document records associated with those members.
+
 Use the **Famiglia** panel to create a household and household members before
 uploading clinical documents. Fiscal codes are normalized and shape-validated
 at the API boundary; their use never collapses patient, payer and fiscal-holder

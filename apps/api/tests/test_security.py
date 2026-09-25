@@ -1,9 +1,12 @@
 import pytest
 
 from app.core.security import password_hash, verify_password
+from app.db.session import SessionLocal
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 from app.main import app
+from app.models.entities import Document
 
 
 def test_argon2_password_verification_accepts_correct_password() -> None:
@@ -31,3 +34,15 @@ def test_local_web_origins_can_preflight_household_creation(origin: str) -> None
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == origin
     assert "POST" in response.headers["access-control-allow-methods"]
+
+
+def test_database_reset_requires_exact_operator_confirmation() -> None:
+    database = SessionLocal()
+    try:
+        before_count = database.scalar(select(func.count()).select_from(Document))
+        with TestClient(app) as client:
+            response = client.post("/api/v1/admin/reset-database", json={"confirmation": "reset"})
+        assert response.status_code == 422
+        assert database.scalar(select(func.count()).select_from(Document)) == before_count
+    finally:
+        database.close()

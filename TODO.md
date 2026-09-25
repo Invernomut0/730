@@ -103,6 +103,8 @@
 - [x] Google Drive encrypted upload
 - [x] restore verification
 - [x] key-management guide
+- [x] guarded local database reset
+- [x] targeted document and household deletion
 
 ## P3 Quality
 - [x] Responsive visual design system
