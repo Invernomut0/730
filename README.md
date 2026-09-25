@@ -38,6 +38,10 @@ Embedding responses are validated for finite, consistently sized vectors and
 are reserved for candidate retrieval; they cannot independently confirm a
 medical-document link.
 
+The versioned document-classifier calibration dataset is wholly synthetic and
+ships with the API image. Its typed loader rejects invalid, duplicate, or
+incomplete data before a future local Rizzo evaluation can run.
+
 ## AI stack
 - LM Studio via OpenAI-compatible API
 - configured primary model: `qwen3.8-27b-abliterated-mtplx-optimized-speed`

@@ -20,6 +20,11 @@ Preferred for fast typed decisions such as document type, diagnosis presence, li
 
 Fallback to main LLM when evidence is insufficient, confidence is low or generative extraction is required.
 
+## Calibration
+The checked-in document-classifier calibration set is synthetic, versioned, and
+loaded through a typed contract. It covers all supported document types without
+including personal or real clinical data. See `docs/CALIBRATION_DATASET.md`.
+
 ## Structured output
 All extraction uses versioned JSON Schema/Pydantic models. Invalid output gets bounded retry, then ReviewTask.
 

@@ -91,7 +91,7 @@
 - [x] prompt registry
 - [x] AIExecution audit
 - [x] embedding provider
-- [ ] calibration dataset
+- [x] calibration dataset
 - [ ] evaluate-rizzo command
 
 ## P2 Security / backup
