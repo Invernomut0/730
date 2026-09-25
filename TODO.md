@@ -53,15 +53,15 @@
 - [x] patient-vs-payer review
 
 ## P1 Insurance
-- [ ] Review/activate 2026 rule set
-- [ ] Coverage-category engine
-- [ ] Required-document checklist
-- [ ] Diagnosis evidence policy
-- [ ] Physiotherapy grouping
-- [ ] Dental/preventive/lens rules
-- [ ] Hospital pre/post windows
-- [ ] Limits/franchise/coinsurance calculator
-- [ ] Insurance PDF/package export
+- [x] Review/activate 2026 rule set
+- [x] Coverage-category engine
+- [x] Required-document checklist
+- [x] Diagnosis evidence policy
+- [x] Physiotherapy grouping
+- [x] Dental/preventive/lens rules
+- [x] Hospital pre/post windows
+- [x] Limits/franchise/coinsurance calculator
+- [x] Insurance PDF/package export
 
 ## P1 Reimbursements
 - [ ] Reimbursement model

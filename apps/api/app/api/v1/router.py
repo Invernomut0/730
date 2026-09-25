@@ -46,7 +46,7 @@ from app.schemas.api import (
     ReceiptLineCreate,
     MixedAllocation,
 )
-from app.services.insurance import evaluate_specialist_and_diagnostics
+from app.services.insurance import evaluate_specialist_and_diagnostics, export_package
 from app.services.identity import normalize_fiscal_code
 from app.services.audit import record_audit
 from app.core.security import verify_password
@@ -327,6 +327,15 @@ def insurance_evaluation(event_id: UUID, db: Session = Depends(get_db)) -> Insur
         missing_documents=result.missing_documents,
         warnings=result.warnings,
     )
+
+
+@router.get("/medical-events/{event_id}/insurance-package")
+def insurance_package(event_id: UUID, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> FileResponse:
+    """Export a local PDF candidate summary for mandatory human policy review."""
+    if db.get(MedicalEvent, event_id) is None:
+        raise HTTPException(status_code=404, detail="Medical event not found.")
+    package = export_package(settings.storage_root / "exports", event_id, evaluate_specialist_and_diagnostics(db, event_id))
+    return FileResponse(package, media_type="application/pdf", filename=package.name)
 
 
 @router.get("/review-tasks", response_model=list[ReviewResponse])

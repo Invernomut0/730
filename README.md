@@ -131,6 +131,15 @@ Nine-digit AIC values are validated against that catalog. Receipt-line matching
 uses AIC first, then a conservative medicine-name fallback; unresolved or
 patient/payer-conflicting lines create review tasks rather than assumptions.
 
+## Insurance 2026
+
+The reviewed local rule set in `rules/insurance/2026.yml` evaluates coverage
+categories, required evidence, diagnosis policy, physiotherapy, dental, lenses,
+and hospitalization pre/post windows. It applies configured limits, deductibles
+and coinsurance only to candidates with complete evidence. Export a local,
+human-review-required PDF summary with
+`GET /api/v1/medical-events/{event_id}/insurance-package`.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

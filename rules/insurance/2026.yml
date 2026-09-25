@@ -1,5 +1,5 @@
 version: insurance-2026-v1
-status: draft
+status: active_reviewed
 source:
   document: "Piano Sanitario 2026.pdf"
   note: "Informative manual; policy contract remains authoritative."
@@ -16,6 +16,8 @@ categories:
     coinsurance_cap_eur: 4000
     ticket_reimbursement_percent: 100
     required_documents: [hospital_record]
+    pre_hospital_days: 90
+    post_hospital_days: 120
 
   high_diagnostics:
     annual_limit_eur: 10000
@@ -38,6 +40,7 @@ categories:
     diagnosis_required: true
     prescription_required: true
     allow_multi_invoice_cycle: true
+    required_documents: [prescription, diagnosis_or_clinical_indication, valid_expense_document]
 
   pharmaceuticals:
     parent: specialist_and_diagnostics
@@ -52,6 +55,7 @@ categories:
       - dietary
       - supplement
       - cosmetic
+    required_documents: [prescription, diagnosis_or_clinical_indication, product_level_receipt]
 
   dental:
     annual_limit_eur: 2600
@@ -59,6 +63,7 @@ categories:
     out_network_coinsurance_percent: 25
     out_network_minimum_eur: 103
     treatment_description_required: true
+    required_documents: [valid_expense_document, treatment_description]
     diagnosis_required: false
 
   preventive_medicine:
@@ -68,6 +73,7 @@ categories:
   corrective_lenses:
     diagnosis_required: false
     first_prescription_or_visual_change_required: true
+    required_documents: [valid_expense_document, visual_prescription_or_change]
 
 provenance_policy:
   require_source_page: true
