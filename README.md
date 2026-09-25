@@ -77,6 +77,7 @@ clinical fields.
 
 The containerized test suite uses synthetic data and validates immutable
 storage/MIME rejection, fiscal-code normalization, local OCR fallback, and
-positive and negative prescription-to-invoice link scoring. Run it with
+positive and negative prescription-to-invoice link scoring. It also executes
+the household/member API flow against PostgreSQL with cleanup. Run it with
 `docker compose run --rm api pytest -q`; lint runs with
 `docker compose run --rm api ruff check .`.

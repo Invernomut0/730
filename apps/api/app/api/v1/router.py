@@ -151,7 +151,7 @@ def create_member(payload: MemberCreate, db: Session = Depends(get_db)) -> dict[
         fiscal_code = normalize_fiscal_code(payload.fiscal_code) if payload.fiscal_code else None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    member = HouseholdMember(**payload.model_dump(), fiscal_code=fiscal_code)
+    member = HouseholdMember(**payload.model_dump(exclude={"fiscal_code"}), fiscal_code=fiscal_code)
     db.add(member)
     db.commit()
     return {"id": str(member.id), "name": f"{member.first_name} {member.last_name}"}
