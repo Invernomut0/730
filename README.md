@@ -116,6 +116,14 @@ the service on a LAN, set `AUTH_ENABLED=true`, an Argon2 value in
 cookie for all application routes; health checks and login remain available for
 bootstrap. Never commit the password hash or session secret.
 
+## HTTPS LAN deployment
+
+Use `docker-compose.lan.yml` for LAN deployment, not the development Compose
+file. It exposes only Caddy on port 443 and provides a local CA for
+`LAN_HOSTNAME`; API, web, database, Redis, and worker ports remain private.
+See `docs/HTTPS_LAN.md` for the required authentication settings, CA trust, and
+firewall verification steps.
+
 ## Watched directory
 
 Copy supported files into `WATCH_DIRECTORY` (default: `data/inbox`). The ARQ

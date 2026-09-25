@@ -14,5 +14,11 @@ Archive locally -> encrypt locally with authenticated encryption -> upload opaqu
 ## Secrets
 Never commit secrets. Use environment variables/secret files excluded from git.
 
+## HTTPS on a LAN
+Use the isolated Caddy deployment in `docker-compose.lan.yml`; it exposes only
+HTTPS and keeps all application and data services on the private Compose
+network. Follow `docs/HTTPS_LAN.md` to enable authentication, trust the local
+CA only on managed devices, and restrict the host firewall.
+
 ## Retention
 Originals immutable; deletions explicit/auditable. Derived OCR and embeddings may use separate retention because they are reproducible.

@@ -95,7 +95,7 @@
 - [x] evaluate-rizzo command
 
 ## P2 Security / backup
-- [ ] HTTPS LAN guide
+- [x] HTTPS LAN guide
 - [ ] upload hardening
 - [ ] auth rate limiting
 - [ ] log-redaction tests
