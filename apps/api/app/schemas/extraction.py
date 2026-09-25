@@ -77,3 +77,30 @@ class InvoiceExtraction(BaseModel):
     @classmethod
     def normalize_invoice_date(cls, value: object) -> object:
         return normalize_italian_date(value)
+
+
+class ClinicalActivityExtraction(BaseModel):
+    kind: str = Field(pattern="^(VISIT|SURGERY|FOLLOW_UP|THERAPY|HOSPITALIZATION|OTHER)$")
+    evidence: EvidenceValue
+    scheduled_date: date | None = None
+
+    @field_validator("scheduled_date", mode="before")
+    @classmethod
+    def normalize_scheduled_date(cls, value: object) -> object:
+        return normalize_italian_date(value)
+
+
+class MedicalReportExtraction(BaseModel):
+    report_date: date | None = None
+    patient: EvidenceValue | None = None
+    patient_fiscal_code: EvidenceValue | None = None
+    provider: EvidenceValue | None = None
+    diagnosis_evidence: list[DiagnosisEvidenceExtraction] = Field(default_factory=list)
+    requested_visits: list[ClinicalActivityExtraction] = Field(default_factory=list)
+    operations: list[ClinicalActivityExtraction] = Field(default_factory=list)
+    follow_up_activities: list[ClinicalActivityExtraction] = Field(default_factory=list)
+
+    @field_validator("report_date", mode="before")
+    @classmethod
+    def normalize_report_date(cls, value: object) -> object:
+        return normalize_italian_date(value)

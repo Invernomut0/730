@@ -93,6 +93,9 @@ input:hover, select:hover { border-color: #a79888; }
 .review-copy { display: grid; gap: 0.4rem; }
 .review-copy strong { color: var(--navy-deep); }
 .review-copy p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+.review-document-link { padding: 0; color: var(--navy); background: transparent; border: 0; border-bottom: 1px solid currentColor; font: inherit; text-align: left; }
+.review-document-link:hover:not(:disabled) { color: var(--coral); }
+.review-document-link:disabled { color: var(--muted); border-bottom: 0; cursor: default; }
 .review-signals { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .review-signal { padding: 0.25rem 0.45rem; color: var(--navy); background: var(--sage); border-radius: 999px; font-size: 0.73rem; font-weight: 700; }
 .review-signal.conflict { color: #8a3327; background: #f6ddd6; }

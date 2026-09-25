@@ -22,6 +22,7 @@ from app.models.entities import (
     ExpenseDocument,
     Household,
     HouseholdMember,
+    MedicalReport,
     MedicalEvent,
     EventStatus,
     DocumentType,
@@ -79,6 +80,7 @@ def document_response(document: Document, db: Session) -> DocumentResponse:
     patient = db.get(HouseholdMember, document.patient_id) if document.patient_id else None
     prescription = db.scalar(select(Prescription).where(Prescription.document_id == document.id))
     expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == document.id))
+    report = db.scalar(select(MedicalReport).where(MedicalReport.document_id == document.id))
     return DocumentResponse(
         id=document.id,
         original_filename=document.original_filename,
@@ -92,7 +94,7 @@ def document_response(document: Document, db: Session) -> DocumentResponse:
         patient_name=f"{patient.first_name} {patient.last_name}" if patient else None,
         document_date=document.document_date,
         total_amount=str(expense.total_amount) if expense and expense.total_amount is not None else None,
-        extraction=prescription.extraction if prescription else expense.extraction if expense else None,
+        extraction=prescription.extraction if prescription else expense.extraction if expense else report.extraction if report else None,
         created_at=document.created_at,
     )
 

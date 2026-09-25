@@ -5,7 +5,7 @@ import fitz
 from app.core.config import Settings
 from app.models.entities import DocumentType
 from app.services.extraction import ExtractedPage, classify_document, extract_pdf_text, text_is_insufficient
-from app.schemas.extraction import InvoiceExtraction, PrescriptionExtraction
+from app.schemas.extraction import InvoiceExtraction, MedicalReportExtraction, PrescriptionExtraction
 
 
 def test_native_text_quality_requires_ocr_when_empty() -> None:
@@ -59,3 +59,20 @@ def test_extractions_normalize_unambiguous_italian_dates() -> None:
 
     assert prescription.document_date is not None and prescription.document_date.isoformat() == "2026-09-25"
     assert invoice.invoice_date is not None and invoice.invoice_date.isoformat() == "2026-09-25"
+
+
+def test_medical_report_extraction_preserves_patient_date_and_activities() -> None:
+    report = MedicalReportExtraction.model_validate({
+        "report_date": "20/01/2026",
+        "patient": {"value": "Lorenzo Vismara", "confidence": 0.99},
+        "requested_visits": [{"kind": "VISIT", "evidence": {"value": "Visita multidisciplinare", "confidence": 0.95}}],
+        "operations": [{"kind": "SURGERY", "evidence": {"value": "Resezione ileo-cecale", "confidence": 0.92}}],
+        "follow_up_activities": [{"kind": "FOLLOW_UP", "evidence": {"value": "Controllo gastroenterologico", "confidence": 0.9}, "scheduled_date": "25/06/2024"}],
+    })
+
+    assert report.report_date is not None and report.report_date.isoformat() == "2026-01-20"
+    assert report.patient and report.patient.value == "Lorenzo Vismara"
+    assert report.requested_visits[0].kind == "VISIT"
+    assert report.operations[0].kind == "SURGERY"
+    assert report.follow_up_activities[0].scheduled_date is not None
+    assert report.follow_up_activities[0].scheduled_date.isoformat() == "2024-06-25"

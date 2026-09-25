@@ -9,17 +9,27 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.adapters.lmstudio import LLMProvider, LLMUnavailable
-from app.models.entities import AIExecution, Document, DocumentType, ExpenseDocument, Prescription
-from app.schemas.extraction import InvoiceExtraction, PrescriptionExtraction
+from app.models.entities import AIExecution, Document, DocumentType, ExpenseDocument, MedicalReport, Prescription
+from app.schemas.extraction import InvoiceExtraction, MedicalReportExtraction, PrescriptionExtraction
 from app.services.identity import resolve_patient
 
 
 async def structure_document(db: Session, document: Document, text: str, provider: LLMProvider) -> None:
     """Extract a typed record and persist provenance for a classified document."""
-    if document.document_type not in {DocumentType.PRESCRIPTION, DocumentType.INVOICE}:
+    if document.document_type not in {DocumentType.PRESCRIPTION, DocumentType.INVOICE, DocumentType.MEDICAL_REPORT}:
         return
-    schema: type[BaseModel] = PrescriptionExtraction if document.document_type == DocumentType.PRESCRIPTION else InvoiceExtraction
-    prompt_name = "prescription-extractor" if document.document_type == DocumentType.PRESCRIPTION else "invoice-extractor"
+    schema_by_type: dict[DocumentType, type[BaseModel]] = {
+        DocumentType.PRESCRIPTION: PrescriptionExtraction,
+        DocumentType.INVOICE: InvoiceExtraction,
+        DocumentType.MEDICAL_REPORT: MedicalReportExtraction,
+    }
+    prompt_by_type = {
+        DocumentType.PRESCRIPTION: "prescription-extractor",
+        DocumentType.INVOICE: "invoice-extractor",
+        DocumentType.MEDICAL_REPORT: "medical-report-extractor",
+    }
+    schema = schema_by_type[document.document_type]
+    prompt_name = prompt_by_type[document.document_type]
     prompt_path = Path("/prompts") / prompt_name / "v1.md"
     prompt = f"{prompt_path.read_text()}\n\nDocument text:\n{text}"
     execution = AIExecution(
@@ -50,9 +60,14 @@ async def structure_document(db: Session, document: Document, text: str, provide
         db.add(Prescription(document_id=document.id, patient_id=patient.member_id, prescription_date=extracted.document_date, provider=extracted.provider.value if extracted.provider else None, extraction=extracted.model_dump(mode="json")))
         document.patient_id = patient.member_id
         document.document_date = extracted.document_date
-    else:
+    elif isinstance(extracted, InvoiceExtraction):
         patient = resolve_patient(db, extracted.patient_fiscal_code.value if extracted.patient_fiscal_code else None, extracted.patient_name.value if extracted.patient_name else None)
         db.add(ExpenseDocument(document_id=document.id, patient_id=patient.member_id, invoice_date=extracted.invoice_date, provider_name=extracted.provider_name.value if extracted.provider_name else None, total_amount=extracted.total_amount, extraction=extracted.model_dump(mode="json")))
         document.patient_id = patient.member_id
         document.document_date = extracted.invoice_date
+    else:
+        patient = resolve_patient(db, extracted.patient_fiscal_code.value if extracted.patient_fiscal_code else None, extracted.patient.value if extracted.patient else None)
+        db.add(MedicalReport(document_id=document.id, patient_id=patient.member_id, report_date=extracted.report_date, provider=extracted.provider.value if extracted.provider else None, extraction=extracted.model_dump(mode="json")))
+        document.patient_id = patient.member_id
+        document.document_date = extracted.report_date
     db.commit()

@@ -19,6 +19,7 @@ from app.models.entities import (
     Household,
     HouseholdMember,
     MedicalEvent,
+    MedicalReport,
     PaymentEvidence,
     PharmacyReceipt,
     Precompiled730Row,
@@ -89,6 +90,7 @@ def delete_document_group(db: Session, storage_root: Path, document_id: UUID) ->
         db.execute(delete(Prescription).where(Prescription.id.in_(prescription_ids)))
     if expense_ids:
         db.execute(delete(ExpenseDocument).where(ExpenseDocument.id.in_(expense_ids)))
+    db.execute(delete(MedicalReport).where(MedicalReport.document_id.in_(document_ids)))
     db.execute(delete(DocumentPage).where(DocumentPage.document_id.in_(document_ids)))
     db.execute(delete(AIExecution).where(AIExecution.document_id.in_(document_ids)))
     db.execute(delete(DocumentLink).where(or_(DocumentLink.source_document_id.in_(document_ids), DocumentLink.target_document_id.in_(document_ids))))
@@ -113,6 +115,7 @@ def delete_household(db: Session, storage_root: Path, household_id: UUID) -> int
     if member_ids:
         document_ids.update(db.scalars(select(Prescription.document_id).where(Prescription.patient_id.in_(member_ids))))
         document_ids.update(db.scalars(select(ExpenseDocument.document_id).where(ExpenseDocument.patient_id.in_(member_ids))))
+        document_ids.update(db.scalars(select(MedicalReport.document_id).where(MedicalReport.patient_id.in_(member_ids))))
         document_ids.update(db.scalars(select(PharmacyReceipt.document_id).where(PharmacyReceipt.payer_id.in_(member_ids))))
         document_ids.update(
             db.scalars(

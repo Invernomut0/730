@@ -211,6 +211,11 @@ logical name (`date_type_hash.ext`) while retaining the immutable original and
 source filename. Exact SHA-256 duplicates are linked and are not processed again
 during re-scans.
 
+Medical reports are structured locally into report date, patient, provider,
+diagnostic evidence, requested visits, documented operations, and explicit
+follow-up activities. Every extracted item keeps page/source/confidence evidence
+and is displayed in the document viewer.
+
 ## Pharmacy
 
 Pharmacy receipts are represented as atomic `ReceiptLine` records with distinct
