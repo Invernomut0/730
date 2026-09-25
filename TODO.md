@@ -86,10 +86,10 @@
 - [x] Discrepancy UI
 
 ## P2 AI / Rizzo
-- [ ] Rizzo Flow adapter + batch typed decisions
-- [ ] fallback policy
-- [ ] prompt registry
-- [ ] AIExecution audit
+- [x] Rizzo Flow adapter + batch typed decisions
+- [x] fallback policy
+- [x] prompt registry
+- [x] AIExecution audit
 - [ ] embedding provider
 - [ ] calibration dataset
 - [ ] evaluate-rizzo command

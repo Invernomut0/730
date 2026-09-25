@@ -27,6 +27,12 @@ Documents remain immutable. Practices are logical graph entities, not physical f
 
 AI is deterministic-first: rules and exact identifiers before Rizzo Flow, embeddings or LLM reasoning.
 
+Rizzo Flow is optional and disabled by default. If enabled, it receives local
+schema-constrained batches at `POST /decisions`; malformed or unavailable Rizzo
+responses fall back to the configured local LM Studio model. Each provider
+attempt is recorded as an `AIExecution` with opaque input hash, prompt/schema
+versions, status, and duration—never document content.
+
 ## AI stack
 - LM Studio via OpenAI-compatible API
 - configured primary model: `qwen3.8-27b-abliterated-mtplx-optimized-speed`
