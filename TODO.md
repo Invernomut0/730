@@ -105,6 +105,7 @@
 - [x] key-management guide
 
 ## P3 Quality
+- [x] Responsive visual design system
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

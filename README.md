@@ -66,6 +66,10 @@ Copy `.env.example` to `.env` and adjust only local/LAN endpoints and model IDs.
 worker and the Next.js web UI. Open `http://localhost:3000` for the Inbox and
 `http://localhost:8000/docs` for the generated API contract.
 
+The web UI uses a local, responsive editorial design system: no external fonts
+or assets are loaded. Its dossier cards, high-contrast states, and responsive
+forms preserve usability for document review on desktop and tablet screens.
+
 The current foundation provides immutable PDF/PNG/JPEG ingestion with binary
 MIME sniffing, SHA-256 duplicate detection, PostgreSQL persistence, a queued
 native-PDF extraction/classification job with a local Tesseract fallback for

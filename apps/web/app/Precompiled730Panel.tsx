@@ -21,10 +21,9 @@ export function Precompiled730Panel(): ReactElement {
     await fetch(`${API}/api/v1/tax/${year}/precompiled/reconcile`, { method: "POST" });
     setMessage("Import completato; sono mostrate solo le discrepanze."); await refresh();
   }
-  return <section style={{ marginTop: 32, padding: 16, border: "1px solid #e4e8ef", borderRadius: 12 }}>
-    <h2>Precompilata 730</h2><label>Anno <input value={year} onChange={event => setYear(event.target.value)} inputMode="numeric" /></label><p>{message}</p>
-    <input aria-label="Importa CSV precompilata" type="file" accept="text/csv,.csv" onChange={upload} />
-    <button onClick={() => void refresh()} style={{ marginLeft: 8 }}>Aggiorna discrepanze</button>
-    {rows.length > 0 && <ul>{rows.map(row => <li key={row.id}><strong>€ {row.amount}</strong> · {row.description} · <em>{row.status}</em></li>)}</ul>}
+  return <section className="panel">
+    <div className="panel-title"><div><p className="eyebrow">FISCO</p><h2>Precompilata 730</h2></div><p className="muted">Confronto locale, senza accesso a SPID o CIE.</p></div>
+    <div className="tax-controls"><label>Anno<br /><input value={year} onChange={event => setYear(event.target.value)} inputMode="numeric" /></label><input aria-label="Importa CSV precompilata" type="file" accept="text/csv,.csv" onChange={upload} /><button className="action-button" onClick={() => void refresh()}>Aggiorna discrepanze</button></div><p className="feedback" aria-live="polite">{message}</p>
+    {rows.length > 0 && <ul className="tax-list">{rows.map(row => <li key={row.id}><strong>€ {row.amount}</strong><span>{row.description}</span><em>{row.status}</em></li>)}</ul>}
   </section>;
 }

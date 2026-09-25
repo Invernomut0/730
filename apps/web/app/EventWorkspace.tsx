@@ -26,16 +26,16 @@ export function EventWorkspace(): ReactElement {
     if (response.ok) setReviews(current => current.filter(item => item.id !== review.id));
   }
 
-  const nodes: Node[] = (graph?.nodes ?? []).map((node, index) => ({ id: node.id, position: { x: node.type === "medical_event" ? 280 : 40 + index * 260, y: node.type === "medical_event" ? 120 : 300 }, data: { label: `${node.label} · ${node.status}` }, style: { border: "1px solid #8ea1ba", borderRadius: 8, padding: 10, background: node.type === "medical_event" ? "#e7efff" : "#fff" } }));
+  const nodes: Node[] = (graph?.nodes ?? []).map((node, index) => ({ id: node.id, position: { x: node.type === "medical_event" ? 280 : 40 + index * 260, y: node.type === "medical_event" ? 120 : 300 }, data: { label: `${node.label} · ${node.status}` }, style: { border: "1px solid #93a7a0", borderRadius: 4, padding: 10, background: node.type === "medical_event" ? "#dce9df" : "#fffdf9", color: "#172335", fontFamily: "Baskerville, serif" } }));
   const edges: Edge[] = (graph?.edges ?? []).map(edge => ({ id: edge.id, source: edge.source, target: edge.target, label: `${Math.round(edge.confidence * 100)}%`, animated: edge.conflicts.length === 0 }));
 
-  return <section style={{ marginTop: 32 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><h2>Medical Event workspace</h2><select aria-label="Seleziona evento" value={selectedId ?? ""} onChange={event => setSelectedId(event.target.value)}><option value="">Nessun evento</option>{events.map(event => <option key={event.id} value={event.id}>{event.title} · {Math.round(event.confidence * 100)}%</option>)}</select></div>
-    {!selectedId ? <p style={{ color: "#5c6b82" }}>Un evento compare qui dopo un collegamento verificato tra prescrizione e fattura.</p> : <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 16, minHeight: 420 }}>
-      <aside style={{ border: "1px solid #e4e8ef", borderRadius: 12, padding: 16 }}><strong>Documenti</strong><p>Le relazioni sono create solo con evidenze e senza conflitti maggiori.</p></aside>
-      <div style={{ border: "1px solid #e4e8ef", borderRadius: 12, overflow: "hidden" }}><ReactFlow nodes={nodes} edges={edges} fitView><Background /><Controls /></ReactFlow></div>
-      <aside style={{ border: "1px solid #e4e8ef", borderRadius: 12, padding: 16 }}><strong>Assicurazione</strong>{evaluation && <><p>{evaluation.status === "candidate" ? "Candidata al rimborso" : "Da verificare"}</p><p>Documentazione {evaluation.documentation_complete ? "apparentemente completa" : "incompleta"}</p><p>Stima: € {evaluation.estimated_eligible_amount}</p>{evaluation.missing_documents.map(item => <p key={item}>Manca: {item}</p>)}</>}</aside>
+  return <section className="panel">
+    <div className="panel-title"><div><p className="eyebrow">RELAZIONI CLINICHE</p><h2>Medical Event workspace</h2></div><select aria-label="Seleziona evento" value={selectedId ?? ""} onChange={event => setSelectedId(event.target.value)}><option value="">Nessun evento</option>{events.map(event => <option key={event.id} value={event.id}>{event.title} · {Math.round(event.confidence * 100)}%</option>)}</select></div>
+    {!selectedId ? <p className="muted">Un evento compare qui dopo un collegamento verificato tra prescrizione e fattura.</p> : <div className="workspace-grid">
+      <aside className="workspace-aside"><strong>Documenti</strong><p>Le relazioni sono create solo con evidenze e senza conflitti maggiori.</p></aside>
+      <div className="flow-canvas"><ReactFlow nodes={nodes} edges={edges} fitView><Background /><Controls /></ReactFlow></div>
+      <aside className="workspace-aside"><strong>Assicurazione</strong>{evaluation && <><p>{evaluation.status === "candidate" ? "Candidata al rimborso" : "Da verificare"}</p><p>Documentazione {evaluation.documentation_complete ? "apparentemente completa" : "incompleta"}</p><p>Stima: € {evaluation.estimated_eligible_amount}</p>{evaluation.missing_documents.map(item => <p key={item}>Manca: {item}</p>)}</>}</aside>
     </div>}
-    <section style={{ marginTop: 16, border: "1px solid #e4e8ef", borderRadius: 12, padding: 16 }}><strong>Review queue</strong>{reviews.length === 0 ? <p>Nessuna revisione aperta.</p> : reviews.map(review => <div key={review.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 12 }}><span>{review.type} · priorità {review.priority}</span><button onClick={() => void resolve(review)}>Segna come risolta</button></div>)}</section>
+    <section className="review-queue"><strong>Review queue</strong>{reviews.length === 0 ? <p className="muted">Nessuna revisione aperta.</p> : reviews.map(review => <div key={review.id} className="review-item"><span>{review.type} · priorità {review.priority}</span><button className="text-button" onClick={() => void resolve(review)}>Segna come risolta</button></div>)}</section>
   </section>;
 }

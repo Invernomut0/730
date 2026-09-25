@@ -55,24 +55,25 @@ export default function Home() {
     setPages(response.ok ? await response.json() as DocumentPage[] : []);
   }
 
-  return <main style={{ fontFamily: "Inter, system-ui, sans-serif", maxWidth: 1180, margin: "0 auto", padding: 32, color: "#172033" }}>
-    <header style={{ borderBottom: "1px solid #e4e8ef", paddingBottom: 24, display: "flex", justifyContent: "space-between" }}>
-      <div><p style={{ color: "#5c6b82", letterSpacing: 1.5, fontSize: 12, fontWeight: 700 }}>HEALTHDOCS 730 · LOCAL-FIRST</p><h1 style={{ margin: "6px 0" }}>Inbox documenti</h1><p style={{ margin: 0, color: "#5c6b82" }}>Originali immutabili, decisioni spiegabili.</p></div>
-      <nav aria-label="Navigazione principale" style={{ color: "#5c6b82", alignSelf: "center" }}>Inbox · Medical Events · Insurance · 730 · Review · Family · Settings</nav>
+  return <main className="app-shell">
+    <header className="masthead">
+      <div className="monogram" aria-hidden="true">730</div>
+      <div><p className="eyebrow">HEALTHDOCS · ARCHIVIO LOCALE</p><h1>Inbox documenti</h1><p className="masthead-subtitle">Originali immutabili. Decisioni spiegabili. Una storia clinica leggibile.</p></div>
+      <nav aria-label="Navigazione principale" className="top-nav">Inbox · Medical Events · Insurance · 730 · Review · Family · Settings</nav>
     </header>
-    <section style={{ marginTop: 32, padding: 28, border: "1px dashed #97a6bd", borderRadius: 12, background: "#f8fafc" }}>
-      <h2 style={{ marginTop: 0 }}>Aggiungi un documento</h2><p>{message}</p>
-      <label style={{ display: "inline-block", background: "#155eef", color: "white", padding: "10px 16px", borderRadius: 8, cursor: uploading ? "wait" : "pointer" }}>
+    <section className="upload-card">
+      <div><p className="eyebrow">NUOVO DOCUMENTO</p><h2>Aggiungi al dossier</h2><p>{message}</p></div>
+      <label className="upload-action" aria-busy={uploading}>
         {uploading ? "Caricamento…" : "Scegli documento"}<input aria-label="Carica documento" type="file" accept="application/pdf,image/png,image/jpeg,image/tiff,image/heic" onChange={upload} disabled={uploading} hidden />
       </label>
     </section>
-    <section style={{ marginTop: 32 }}><h2>Documenti elaborati</h2>
-      <div style={{ border: "1px solid #e4e8ef", borderRadius: 12, overflow: "hidden" }}>
-        {documents.length === 0 ? <p style={{ padding: 20, color: "#5c6b82" }}>Nessun documento caricato.</p> : documents.map((document) => <article key={document.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 16, padding: 18, borderBottom: "1px solid #e4e8ef" }}>
-          <button onClick={() => void selectDocument(document.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "left", cursor: "pointer", color: "inherit" }}><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><br /><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span>{document.document_type}</span><span>{document.state}</span><span>{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span>
+    <section><div className="section-heading"><h2>Documenti elaborati</h2><p className="section-kicker">{documents.length} nel dossier</p></div>
+      <div className="document-list">
+        {documents.length === 0 ? <p className="empty-state">Nessun documento caricato.</p> : documents.map((document) => <article key={document.id} className="document-row">
+          <button onClick={() => void selectDocument(document.id)} className="document-name"><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className="document-meta document-state">{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span>
         </article>)}
       </div>
-      {documents.find(item => item.id === selectedDocumentId) && <section style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 12 }}><h3>Viewer e campi estratti</h3><img alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} style={{ maxWidth: 360, maxHeight: 480, display: "block", marginBottom: 12 }} /><p>{pages.flatMap(page => page.blocks?.words ?? []).map(word => word.text).join(" · ") || "Bounding box OCR non ancora disponibili."}</p><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction ?? { status: "In attesa di estrazione strutturata" }, null, 2)}</pre></section>}
+      {documents.find(item => item.id === selectedDocumentId) && <section className="panel viewer"><div><h3>Anteprima originale</h3><img className="viewer-preview" alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} /></div><div className="viewer-copy"><h3>Campi estratti</h3><p>{pages.flatMap(page => page.blocks?.words ?? []).map(word => word.text).join(" · ") || "Bounding box OCR non ancora disponibili."}</p><pre>{JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction ?? { status: "In attesa di estrazione strutturata" }, null, 2)}</pre></div></section>}
     </section>
     <FamilyPanel />
     <Precompiled730Panel />

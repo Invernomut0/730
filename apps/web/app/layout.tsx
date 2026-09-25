@@ -1,3 +1,5 @@
+import "./globals.css";
+
 export const metadata = {
   title: "HealthDocs 730",
   description: "Local-first health document intelligence",
