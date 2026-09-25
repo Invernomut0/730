@@ -81,3 +81,8 @@ positive and negative prescription-to-invoice link scoring. It also executes
 the household/member API flow against PostgreSQL with cleanup. Run it with
 `docker compose run --rm api pytest -q`; lint runs with
 `docker compose run --rm api ruff check .`.
+
+The synthetic vertical-slice test verifies prescription and invoice structured
+extraction, household resolution, explainable matching, and proposed
+`MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,
+assigned patient, document date, and invoice total for human verification.

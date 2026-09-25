@@ -43,6 +43,10 @@ class DocumentResponse(BaseModel):
     state: str
     document_type: str
     duplicate_of_id: UUID | None
+    patient_name: str | None
+    document_date: date | None
+    total_amount: str | None
+    extraction: dict[str, object] | None
     created_at: datetime
 
 

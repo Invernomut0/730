@@ -13,12 +13,17 @@ type Document = {
   state: string;
   document_type: string;
   duplicate_of_id: string | null;
+  patient_name: string | null;
+  document_date: string | null;
+  total_amount: string | null;
+  extraction: Record<string, unknown> | null;
 };
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export default function Home() {
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string>();
   const [message, setMessage] = useState("Carica una prescrizione o fattura per iniziare.");
   const [uploading, setUploading] = useState(false);
 
@@ -55,9 +60,10 @@ export default function Home() {
     <section style={{ marginTop: 32 }}><h2>Documenti elaborati</h2>
       <div style={{ border: "1px solid #e4e8ef", borderRadius: 12, overflow: "hidden" }}>
         {documents.length === 0 ? <p style={{ padding: 20, color: "#5c6b82" }}>Nessun documento caricato.</p> : documents.map((document) => <article key={document.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 16, padding: 18, borderBottom: "1px solid #e4e8ef" }}>
-          <strong>{document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><span>{document.document_type}</span><span>{document.state}</span><span>{Math.ceil(document.byte_size / 1024)} KB</span>
+          <button onClick={() => setSelectedDocumentId(document.id)} style={{ border: 0, background: "transparent", padding: 0, textAlign: "left", cursor: "pointer", color: "inherit" }}><strong>{document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><br /><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span>{document.document_type}</span><span>{document.state}</span><span>{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span>
         </article>)}
       </div>
+      {documents.find(item => item.id === selectedDocumentId) && <section style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 12 }}><h3>Campi estratti</h3><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction ?? { status: "In attesa di estrazione strutturata" }, null, 2)}</pre></section>}
     </section>
     <FamilyPanel />
     <EventWorkspace />

@@ -30,6 +30,8 @@
 - [x] Event graph API
 - [x] Event graph UI
 - [x] ReviewTask model/UI
+- [x] Document detail UI (assigned patient and extracted fields)
+- [x] Prescription-to-invoice E2E scenario with synthetic fixtures
 
 ## P1 Document platform
 - [ ] Watched directory

@@ -35,7 +35,7 @@ async def structure_document(db: Session, document: Document, text: str, provide
         db.commit()
         raise LLMUnavailable("Structured extraction was unavailable or invalid.") from error
     execution.status = "SUCCEEDED"
-    execution.model = provider._settings.lmstudio_main_model  # Adapter owns configured model selection.
+    execution.model = provider.model_id
     execution.duration_ms = int((time.monotonic() - started) * 1000)
     if isinstance(extracted, PrescriptionExtraction):
         patient = resolve_patient(db, extracted.patient_fiscal_code.value if extracted.patient_fiscal_code else None, extracted.patient.value if extracted.patient else None)

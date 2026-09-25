@@ -14,7 +14,16 @@ from sqlalchemy.orm import Session
 from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
-from app.models.entities import Document, DocumentLink, Household, HouseholdMember, MedicalEvent, ReviewTask
+from app.models.entities import (
+    Document,
+    DocumentLink,
+    ExpenseDocument,
+    Household,
+    HouseholdMember,
+    MedicalEvent,
+    Prescription,
+    ReviewTask,
+)
 from app.schemas.api import (
     DocumentResponse,
     EventGraph,
@@ -37,7 +46,10 @@ from app.services.storage import ImmutableStorage, UnsupportedDocument
 router = APIRouter(prefix="/api/v1")
 
 
-def document_response(document: Document) -> DocumentResponse:
+def document_response(document: Document, db: Session) -> DocumentResponse:
+    patient = db.get(HouseholdMember, document.patient_id) if document.patient_id else None
+    prescription = db.scalar(select(Prescription).where(Prescription.document_id == document.id))
+    expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == document.id))
     return DocumentResponse(
         id=document.id,
         original_filename=document.original_filename,
@@ -47,6 +59,10 @@ def document_response(document: Document) -> DocumentResponse:
         state=document.state.value,
         document_type=document.document_type.value,
         duplicate_of_id=document.duplicate_of_id,
+        patient_name=f"{patient.first_name} {patient.last_name}" if patient else None,
+        document_date=document.document_date,
+        total_amount=str(expense.total_amount) if expense and expense.total_amount is not None else None,
+        extraction=prescription.extraction if prescription else expense.extraction if expense else None,
         created_at=document.created_at,
     )
 
@@ -105,12 +121,12 @@ async def upload_document(
         await redis.close()
     except OSError as error:
         raise HTTPException(status_code=503, detail="Document stored, but the processing queue is unavailable.") from error
-    return UploadResponse(document=document_response(document), job_status="queued")
+    return UploadResponse(document=document_response(document, db), job_status="queued")
 
 
 @router.get("/documents", response_model=list[DocumentResponse])
 def list_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
-    return [document_response(item) for item in db.scalars(select(Document).order_by(Document.created_at.desc()))]
+    return [document_response(item, db) for item in db.scalars(select(Document).order_by(Document.created_at.desc()))]
 
 
 @router.post("/households", status_code=status.HTTP_201_CREATED)

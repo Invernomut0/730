@@ -14,6 +14,9 @@ class LLMUnavailable(RuntimeError):
 
 
 class LLMProvider(Protocol):
+    @property
+    def model_id(self) -> str: ...
+
     async def models(self) -> list[str]: ...
     async def structured_completion(self, prompt: str, schema: dict[str, Any]) -> dict[str, Any]: ...
 
@@ -23,6 +26,11 @@ class LMStudioProvider:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+
+    @property
+    def model_id(self) -> str:
+        """Return the configured primary model identifier for provenance."""
+        return self._settings.lmstudio_main_model
 
     async def models(self) -> list[str]:
         try:
