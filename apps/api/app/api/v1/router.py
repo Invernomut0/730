@@ -26,6 +26,8 @@ from app.models.entities import (
     PharmacyReceipt,
     Prescription,
     ReviewTask,
+    Reimbursement,
+    PaymentEvidence,
 )
 from app.schemas.api import (
     DocumentResponse,
@@ -45,6 +47,9 @@ from app.schemas.api import (
     PharmacyReceiptCreate,
     ReceiptLineCreate,
     MixedAllocation,
+    ReimbursementCreate,
+    ReimbursementAllocationCreate,
+    PaymentEvidenceCreate,
 )
 from app.services.insurance import evaluate_specialist_and_diagnostics, export_package
 from app.services.identity import normalize_fiscal_code
@@ -52,6 +57,8 @@ from app.services.audit import record_audit
 from app.core.security import verify_password
 from app.services.storage import ImmutableStorage, UnsupportedDocument
 from app.services.thumbnails import thumbnail_path
+from app.services.reimbursements import allocate_reimbursement, out_of_pocket
+from app.services.tax import evaluate_expense
 from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aifa_csv, match_receipt_lines
 
 router = APIRouter(prefix="/api/v1")
@@ -238,6 +245,40 @@ def allocate_pharmacy_receipt(receipt_id: UUID, payload: MixedAllocation, db: Se
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return {"allocated_amount": str(result.allocated_amount), "review_required": result.review_required}
+
+
+@router.post("/reimbursements", status_code=status.HTTP_201_CREATED)
+def create_reimbursement(payload: ReimbursementCreate, db: Session = Depends(get_db)) -> dict[str, str]:
+    reimbursement = Reimbursement(**payload.model_dump())
+    db.add(reimbursement); db.flush(); record_audit(db, "reimbursement.created", "Reimbursement", reimbursement.id); db.commit()
+    return {"id": str(reimbursement.id)}
+
+
+@router.post("/reimbursements/{reimbursement_id}/allocate")
+def allocate_reimbursement_endpoint(reimbursement_id: UUID, payload: ReimbursementAllocationCreate, db: Session = Depends(get_db)) -> dict[str, str]:
+    try:
+        allocation = allocate_reimbursement(db, reimbursement_id, payload.expense_document_id, payload.amount)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"id": str(allocation.id), "out_of_pocket": str(out_of_pocket(db, payload.expense_document_id))}
+
+
+@router.post("/expenses/{expense_id}/payment-evidence", status_code=status.HTTP_201_CREATED)
+def create_payment_evidence(expense_id: UUID, payload: PaymentEvidenceCreate, db: Session = Depends(get_db)) -> dict[str, str]:
+    if db.get(ExpenseDocument, expense_id) is None:
+        raise HTTPException(status_code=404, detail="Expense document not found.")
+    evidence = PaymentEvidence(expense_document_id=expense_id, **payload.model_dump())
+    db.add(evidence); db.flush(); record_audit(db, "payment_evidence.created", "PaymentEvidence", evidence.id); db.commit()
+    return {"id": str(evidence.id)}
+
+
+@router.post("/tax/{tax_year}/expenses/{expense_id}/evaluate")
+def evaluate_tax_expense(tax_year: int, expense_id: UUID, taxpayer_id: UUID, db: Session = Depends(get_db)) -> dict[str, str]:
+    try:
+        allocation = evaluate_expense(db, tax_year, expense_id, taxpayer_id)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"id": str(allocation.id), "eligible_amount": str(allocation.eligible_amount), "status": allocation.status}
 
 
 @router.post("/households", status_code=status.HTTP_201_CREATED)

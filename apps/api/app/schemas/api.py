@@ -132,3 +132,22 @@ class ReceiptLineCreate(BaseModel):
 
 class MixedAllocation(BaseModel):
     allocations: dict[UUID, UUID]
+
+
+class ReimbursementCreate(BaseModel):
+    document_id: UUID | None = None
+    payer_id: UUID | None = None
+    amount: Decimal = Field(gt=0)
+    source: str = Field(default="manual", max_length=32)
+    reference: str | None = Field(default=None, max_length=255)
+
+
+class ReimbursementAllocationCreate(BaseModel):
+    expense_document_id: UUID
+    amount: Decimal = Field(gt=0)
+
+
+class PaymentEvidenceCreate(BaseModel):
+    method: str = Field(min_length=1, max_length=32)
+    traceable: bool
+    reference: str | None = Field(default=None, max_length=255)

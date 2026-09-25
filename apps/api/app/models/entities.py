@@ -187,6 +187,63 @@ class ExpenseDocument(Timestamped, Base):
     extraction: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
+class Reimbursement(Timestamped, Base):
+    __tablename__ = "reimbursements"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
+    payer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("household_members.id"), nullable=True)
+    received_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    source: Mapped[str] = mapped_column(String(32), default="manual")
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class ReimbursementAllocation(Timestamped, Base):
+    __tablename__ = "reimbursement_allocations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    reimbursement_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("reimbursements.id"), index=True)
+    expense_document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("expense_documents.id"), nullable=True)
+    receipt_line_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("receipt_lines.id"), nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+
+
+class TaxRuleSet(Timestamped, Base):
+    __tablename__ = "tax_rule_sets"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tax_year: Mapped[int] = mapped_column(index=True)
+    version: Mapped[str] = mapped_column(String(64))
+    source_url: Mapped[str] = mapped_column(String(512))
+    source_hash: Mapped[str] = mapped_column(String(64))
+    reviewed: Mapped[bool] = mapped_column(default=False)
+    rules: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class PaymentEvidence(Timestamped, Base):
+    __tablename__ = "payment_evidence"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    expense_document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("expense_documents.id"), index=True)
+    method: Mapped[str] = mapped_column(String(32))
+    traceable: Mapped[bool] = mapped_column(default=False)
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class TaxAllocation(Timestamped, Base):
+    __tablename__ = "tax_allocations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tax_year: Mapped[int] = mapped_column(index=True)
+    taxpayer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("household_members.id"))
+    expense_document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("expense_documents.id"))
+    gross_amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    reimbursed_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+    eligible_amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    status: Mapped[str] = mapped_column(String(32), default="REVIEW_REQUIRED")
+
+
 class MedicalEvent(Timestamped, Base):
     __tablename__ = "medical_events"
 

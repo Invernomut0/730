@@ -64,20 +64,20 @@
 - [x] Insurance PDF/package export
 
 ## P1 Reimbursements
-- [ ] Reimbursement model
-- [ ] Manual/document import
-- [ ] Line-level allocation
-- [ ] Out-of-pocket reconciliation
+- [x] Reimbursement model
+- [x] Manual/document import
+- [x] Line-level allocation
+- [x] Out-of-pocket reconciliation
 
 ## P1 Tax
-- [ ] TaxRuleSet
-- [ ] annual dependent status
-- [ ] PaymentEvidence
-- [ ] traceability checker
-- [ ] InsuranceTaxTreatment
-- [ ] tax allocation engine
-- [ ] year/member summary
-- [ ] CAF PDF/CSV/XLSX/ZIP
+- [x] TaxRuleSet
+- [x] annual dependent status
+- [x] PaymentEvidence
+- [x] traceability checker
+- [x] InsuranceTaxTreatment
+- [x] tax allocation engine
+- [x] year/member summary
+- [x] CAF PDF/CSV/XLSX/ZIP
 
 ## P2 Pre-filled 730
 - [ ] Import

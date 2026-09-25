@@ -140,6 +140,14 @@ and coinsurance only to candidates with complete evidence. Export a local,
 human-review-required PDF summary with
 `GET /api/v1/medical-events/{event_id}/insurance-package`.
 
+## Reimbursements and tax
+
+Reimbursements and their allocations are persisted separately from expenses,
+enabling auditable out-of-pocket reconciliation at line level. Tax allocations
+require a reviewed, sourced `TaxRuleSet` and traceable `PaymentEvidence`; the
+engine deliberately preserves the gross amount unless the reviewed rule
+explicitly states that reimbursements reduce the tax base.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,
