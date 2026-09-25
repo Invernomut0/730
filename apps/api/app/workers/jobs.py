@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import ClassVar
 from uuid import UUID
 
+from arq import create_pool
 from arq.connections import RedisSettings
+from arq.cron import cron
 from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
 from app.adapters.ocr import OCRFailed, TesseractOCRProvider
 from app.core.config import get_settings
@@ -19,7 +21,12 @@ from app.services.extraction import (
     text_is_insufficient,
 )
 from app.services.eventing import cluster_document
+from app.services.ingestion import archive_inbox_file, ingest_content
+from app.services.storage import UnsupportedDocument
 from app.services.structuring import structure_document
+from app.services.watched_directory import StableFileTracker
+
+_stable_files = StableFileTracker()
 
 
 async def process_document(_context: dict[str, object], document_id: str) -> None:
@@ -75,8 +82,33 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
         db.close()
 
 
+async def scan_watch_directory(_context: dict[str, object]) -> None:
+    """Ingest only files that remain stable across two watched-directory scans."""
+    settings = get_settings()
+    settings.watch_directory.mkdir(parents=True, exist_ok=True)
+    for path in settings.watch_directory.iterdir():
+        if not path.is_file() or not _stable_files.observe(path):
+            continue
+        database = SessionLocal()
+        try:
+            document = ingest_content(database, settings, path.read_bytes(), path.name)
+            redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+            await redis.enqueue_job("process_document", str(document.id))
+            await redis.close()
+            archive_inbox_file(path, settings.watch_directory / "processed")
+        except UnsupportedDocument:
+            database.rollback()
+            archive_inbox_file(path, settings.storage_root / "quarantine")
+        except OSError:
+            database.rollback()
+        finally:
+            _stable_files.forget(path)
+            database.close()
+
+
 class WorkerSettings:
     """ARQ worker configuration; queue connectivity is configured by environment."""
 
-    functions: ClassVar[list[object]] = [process_document]
+    functions: ClassVar[list[object]] = [process_document, scan_watch_directory]
+    cron_jobs: ClassVar[list[object]] = [cron(scan_watch_directory, second={0})]
     redis_settings: ClassVar[RedisSettings] = RedisSettings.from_dsn(get_settings().redis_url)

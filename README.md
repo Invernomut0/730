@@ -96,6 +96,14 @@ the service on a LAN, set `AUTH_ENABLED=true`, an Argon2 value in
 cookie for all application routes; health checks and login remain available for
 bootstrap. Never commit the password hash or session secret.
 
+## Watched directory
+
+Copy supported files into `WATCH_DIRECTORY` (default: `data/inbox`). The ARQ
+worker observes it once per minute and waits for two unchanged scans before
+ingestion, avoiding partial writes. Accepted files are immutably stored and
+then moved to `data/inbox/processed`; unsupported input is moved to
+`data/quarantine`.
+
 The synthetic vertical-slice test verifies prescription and invoice structured
 extraction, household resolution, explainable matching, and proposed
 `MedicalEvent` creation. The Inbox exposes the persisted extracted JSON,

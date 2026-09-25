@@ -34,8 +34,8 @@
 - [x] Prescription-to-invoice E2E scenario with synthetic fixtures
 
 ## P1 Document platform
-- [ ] Watched directory
-- [ ] File-write stability detection
+- [x] Watched directory
+- [x] File-write stability detection
 - [ ] TIFF/HEIC
 - [ ] Thumbnails
 - [ ] OCR bbox persistence
