@@ -216,6 +216,11 @@ diagnostic evidence, requested visits, documented operations, and explicit
 follow-up activities. Every extracted item keeps page/source/confidence evidence
 and is displayed in the document viewer.
 
+Patient resolution prioritizes an exact fiscal code. When no local fiscal-code
+match exists but the extracted full name (including surname-first order) has one
+unique household match, the document is assigned to that person and a fiscal-code
+conflict is recorded for human review.
+
 ## Pharmacy
 
 Pharmacy receipts are represented as atomic `ReceiptLine` records with distinct

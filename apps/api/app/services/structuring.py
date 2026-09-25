@@ -9,7 +9,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.adapters.lmstudio import LLMProvider, LLMUnavailable
-from app.models.entities import AIExecution, Document, DocumentType, ExpenseDocument, MedicalReport, Prescription
+from app.models.entities import AIExecution, Document, DocumentType, ExpenseDocument, MedicalReport, Prescription, ReviewTask, ReviewType
 from app.schemas.extraction import InvoiceExtraction, MedicalReportExtraction, PrescriptionExtraction
 from app.services.identity import resolve_patient
 
@@ -70,4 +70,11 @@ async def structure_document(db: Session, document: Document, text: str, provide
         db.add(MedicalReport(document_id=document.id, patient_id=patient.member_id, report_date=extracted.report_date, provider=extracted.provider.value if extracted.provider else None, extraction=extracted.model_dump(mode="json")))
         document.patient_id = patient.member_id
         document.document_date = extracted.report_date
+    if patient.conflict:
+        db.add(ReviewTask(
+            type=ReviewType.PATIENT_CONFLICT,
+            entity_type="Document",
+            entity_id=document.id,
+            context={"resolution_evidence": patient.evidence},
+        ))
     db.commit()
