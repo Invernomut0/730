@@ -10,7 +10,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
@@ -619,21 +619,39 @@ def decide_medical_event_association(event_id: UUID, payload: AssociationDecisio
 
 @router.post("/medical-events/rebuild-associations", response_model=AssociationRebuildResponse)
 def rebuild_associations(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> AssociationRebuildResponse:
-    """Rebuild relationships from completed structured analyses without reprocessing documents."""
+    """Rebuild relationships from persisted structured data without reprocessing documents."""
     event_ids = list(db.scalars(select(MedicalEvent.id)))
+    structured_document_ids = select(Prescription.document_id).union(select(ExpenseDocument.document_id))
     documents = list(db.scalars(select(Document).where(
         Document.duplicate_of_id.is_(None),
-        Document.state == DocumentState.COMPLETE,
+        Document.id.in_(structured_document_ids),
     )))
     db.execute(delete(DocumentLink))
     db.execute(delete(MedicalEvent))
     db.execute(delete(ReviewTask).where(ReviewTask.type == ReviewType.LINK_AMBIGUOUS))
+    db.flush()
     for document in documents:
         if document.document_type == DocumentType.INVOICE:
             cluster_document(db, document, settings.auto_confirm_threshold, settings.suggest_threshold)
-    record_audit(db, "association.rebuilt", "MedicalEvent", UUID(int=0), {"events_removed": len(event_ids), "documents_rebuilt": len(documents)})
+    db.flush()
+    relationships_created = int(db.scalar(select(func.count()).select_from(DocumentLink)) or 0)
+    review_tasks_created = int(db.scalar(select(func.count()).select_from(ReviewTask).where(
+        ReviewTask.type == ReviewType.LINK_AMBIGUOUS,
+    )) or 0)
+    record_audit(db, "association.rebuilt", "MedicalEvent", UUID(int=0), {
+        "events_removed": len(event_ids),
+        "documents_rebuilt": len(documents),
+        "relationships_created": relationships_created,
+        "review_tasks_created": review_tasks_created,
+    })
     db.commit()
-    return AssociationRebuildResponse(documents_queued=0, documents_rebuilt=len(documents), events_removed=len(event_ids))
+    return AssociationRebuildResponse(
+        documents_queued=0,
+        documents_rebuilt=len(documents),
+        events_removed=len(event_ids),
+        relationships_created=relationships_created,
+        review_tasks_created=review_tasks_created,
+    )
 
 
 @router.get("/medical-events/{event_id}/insurance-evaluation", response_model=InsuranceResponse)

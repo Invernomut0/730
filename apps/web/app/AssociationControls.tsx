@@ -30,8 +30,10 @@ export function AssociationControls({ event, onApproved, onRejected, onRebuilt }
     const response = await fetch(`${API}/api/v1/medical-events/rebuild-associations`, { method: "POST" });
     setWorking(false);
     if (!response.ok) { setMessage("Impossibile ricostruire le associazioni."); return; }
-    const result = await response.json() as { documents_rebuilt: number };
-    setMessage(`Relazioni azzerate e ricostruite da ${result.documents_rebuilt} analisi già completate.`);
+    const result = await response.json() as { documents_rebuilt: number; relationships_created: number; review_tasks_created: number };
+    setMessage(result.relationships_created || result.review_tasks_created
+      ? `Ricostruite ${result.relationships_created} relazioni e create ${result.review_tasks_created} proposte di revisione da ${result.documents_rebuilt} estratti già presenti.`
+      : `Nessuna relazione sicura tra i ${result.documents_rebuilt} estratti già presenti: i documenti non sono stati modificati né rianalizzati.`);
     onRebuilt();
   }
 

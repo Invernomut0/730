@@ -6,11 +6,13 @@ associations leave the proposed-relations queue and appear in a separate,
 selectable approved-relations archive.
 
 **Rifai le relazioni da zero** removes every existing event, link and related
-link review, then rebuilds proposals from the existing completed structured
-analyses. It never deletes extracted records, pages, document metadata, or
-original files, and it never queues OCR or document extraction. A database
-uniqueness constraint on each prescription/invoice document pair prevents
-duplicate links.
+link review, then rebuilds proposals from the persisted prescription/invoice
+structured data—regardless of a stale document pipeline state. It never deletes
+extracted records, pages, document metadata, or original files, and it never
+queues OCR or document extraction. The result reports created links and review
+proposals; when neither can be created, it explicitly confirms that no safe
+match had sufficient patient/date/service evidence. A database uniqueness
+constraint on each prescription/invoice document pair prevents duplicate links.
 
 When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
 **Avvia analisi documenti** above the Inbox. It queues each non-duplicate

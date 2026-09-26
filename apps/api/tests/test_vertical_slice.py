@@ -87,7 +87,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         await structure_document(database, prescription_document, "Synthetic prescription", provider)
         await structure_document(database, invoice_document, "Synthetic invoice", provider)
         prescription_document.state = DocumentState.COMPLETE
-        invoice_document.state = DocumentState.COMPLETE
+        invoice_document.state = DocumentState.STRUCTURING
         cluster_document(database, invoice_document, auto_confirm_threshold=0.95, suggest_threshold=0.75)
         database.commit()
 
@@ -148,6 +148,8 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert rebuilt.status_code == 200
         assert rebuilt.json()["documents_queued"] == 0
         assert rebuilt.json()["documents_rebuilt"] >= 2
+        assert rebuilt.json()["relationships_created"] >= 1
+        assert rebuilt.json()["review_tasks_created"] >= 0
         assert queued_documents == []
         assert database.scalar(select(MedicalEvent).where(MedicalEvent.id == event.id)) is None
         rebuilt_link = database.scalar(select(DocumentLink).where(
@@ -161,7 +163,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.refresh(prescription_document)
         database.refresh(invoice_document)
         assert prescription_document.state == DocumentState.COMPLETE
-        assert invoice_document.state == DocumentState.COMPLETE
+        assert invoice_document.state == DocumentState.STRUCTURING
         with TestClient(app) as client:
             saved_settings = client.put("/api/v1/settings/llm", json={
                 "document_model": "small-extraction-model",

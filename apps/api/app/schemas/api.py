@@ -162,6 +162,8 @@ class AssociationRebuildResponse(BaseModel):
     documents_queued: int
     documents_rebuilt: int
     events_removed: int
+    relationships_created: int
+    review_tasks_created: int
 
 
 class InsuranceResponse(BaseModel):
