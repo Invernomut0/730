@@ -7,6 +7,7 @@ from app.models.entities import DocumentType
 from app.services.extraction import ExtractedPage, classify_document, extract_pdf_text, text_is_insufficient
 from app.schemas.extraction import InvoiceExtraction, MedicalReportExtraction, PrescriptionExtraction
 from app.services.structuring import supplement_documented_services
+from app.workers.jobs import WorkerSettings
 
 
 def test_native_text_quality_requires_ocr_when_empty() -> None:
@@ -52,6 +53,10 @@ def test_native_pdf_extraction_persists_normalized_word_boxes(tmp_path: Path) ->
 def test_local_llm_timeout_has_a_safe_default_for_large_models() -> None:
     settings = Settings()
     assert settings.lmstudio_request_timeout_seconds == 1800
+
+
+def test_worker_allows_four_concurrent_document_jobs() -> None:
+    assert WorkerSettings.max_jobs == 4
 
 
 def test_extractions_normalize_unambiguous_italian_dates() -> None:

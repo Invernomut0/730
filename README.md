@@ -168,8 +168,8 @@ local model exceeds the typical duration.
 
 Document relationships require a matching clinical specialty or a shared
 meaningful service term. Generic wording such as "visita" is never sufficient;
-the local worker processes at most two structured documents concurrently to avoid
-exhausting the configured local model.
+the local worker processes at most four structured documents concurrently to
+increase throughput while retaining the configured local-model timeout.
 
 For prescriptions, the extraction contract separately lists every prescribed
 drug and every requested individual laboratory test. Invoices separately list
@@ -180,6 +180,9 @@ large relation model cannot override this safety gate.
 When a prescription contains one or more requested laboratory tests (including
 Italian `90.*` service codes), the viewer presents **Esami di laboratorio** as
 the requested service and lists the individual **Esami richiesti** separately.
+When a prescription contains medicines but no other requested service, the
+viewer presents **Farmaci prescritti** as the requested-service category and
+lists the extracted medicines separately.
 
 Prescription normalization treats Italian laboratory service codes beginning
 with `90.` and explicit analytes (including `VITAMINA D (25 OH)`) as laboratory

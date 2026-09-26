@@ -68,7 +68,7 @@ function extractedSummary(document: Document): Array<[string, string]> {
     ["Tipologia", document.document_type.replaceAll("_", " ")],
     ...(reportKind ? [["Categoria referto", reportKind] as [string, string]] : []),
     ["Dottore", evidenceValue(extraction.doctor) ?? evidenceValue(extraction.provider) ?? evidenceValue(extraction.provider_name) ?? "Non rilevato"],
-    [documentedServices ? "Prestazione documentata" : "Servizio richiesto", documentedServices ?? service ?? (requestedLabTests ? "Esami di laboratorio" : "Non rilevato")],
+    [documentedServices ? "Prestazione documentata" : "Servizio richiesto", documentedServices ?? service ?? (requestedLabTests ? "Esami di laboratorio" : prescribedDrugs ? "Farmaci prescritti" : "Non rilevato")],
     ...(prescribedDrugs ? [["Farmaci prescritti", prescribedDrugs] as [string, string]] : []),
     ...(requestedLabTests ? [["Esami richiesti", requestedLabTests] as [string, string]] : []),
     ...(laboratoryResults ? [["Risultati laboratorio", laboratoryResults] as [string, string]] : []),

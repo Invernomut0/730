@@ -139,6 +139,8 @@
 - [x] Semantic Inbox pipeline-state colors
 - [x] Live analysis polling and phase timebars
 - [x] Laboratory-service viewer category for prescription tests
+- [x] Medicine-service viewer category for prescriptions
+- [x] Four concurrent local document-processing jobs
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline
