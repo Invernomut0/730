@@ -138,6 +138,7 @@
 - [x] Overflow-safe Inbox document filenames
 - [x] Semantic Inbox pipeline-state colors
 - [x] Live analysis polling and phase timebars
+- [x] Laboratory-service viewer category for prescription tests
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

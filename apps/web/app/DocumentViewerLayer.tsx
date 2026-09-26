@@ -60,6 +60,7 @@ function extractedSummary(document: Document): Array<[string, string]> {
   const reportKind = extraction.report_kind === "LABORATORY_RESULTS" ? "Esami di laboratorio" : undefined;
   const prescribedDrugs = evidenceList(extraction.prescribed_drugs);
   const documentedServices = evidenceList(extraction.documented_services);
+  const requestedLabTests = evidenceList(extraction.requested_lab_tests);
   return [
     ["Nome", evidenceValue(extraction.patient) ?? evidenceValue(extraction.patient_name) ?? "Non rilevato"],
     ["Data", String(extraction.document_date ?? extraction.invoice_date ?? extraction.report_date ?? "Non rilevata")],
@@ -67,8 +68,9 @@ function extractedSummary(document: Document): Array<[string, string]> {
     ["Tipologia", document.document_type.replaceAll("_", " ")],
     ...(reportKind ? [["Categoria referto", reportKind] as [string, string]] : []),
     ["Dottore", evidenceValue(extraction.doctor) ?? evidenceValue(extraction.provider) ?? evidenceValue(extraction.provider_name) ?? "Non rilevato"],
-    [documentedServices ? "Prestazione documentata" : "Servizio richiesto", documentedServices ?? service ?? "Non rilevato"],
+    [documentedServices ? "Prestazione documentata" : "Servizio richiesto", documentedServices ?? service ?? (requestedLabTests ? "Esami di laboratorio" : "Non rilevato")],
     ...(prescribedDrugs ? [["Farmaci prescritti", prescribedDrugs] as [string, string]] : []),
+    ...(requestedLabTests ? [["Esami richiesti", requestedLabTests] as [string, string]] : []),
     ...(laboratoryResults ? [["Risultati laboratorio", laboratoryResults] as [string, string]] : []),
   ];
 }
