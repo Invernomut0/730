@@ -185,6 +185,14 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert resumed.json()["jobs_paused"] is False
         database.refresh(prescription_document)
         assert prescription_document.state == DocumentState.STORED
+        queued_documents.clear()
+        with TestClient(app) as client:
+            forced = client.post(f"/api/v1/documents/{prescription_document_id}/reanalyze")
+        assert forced.status_code == 200
+        assert forced.json()["documents_queued"] == 1
+        assert queued_documents == [str(prescription_document_id)]
+        database.refresh(prescription_document)
+        assert prescription_document.state == DocumentState.EXTRACTING
     finally:
         event_ids = select(MedicalEvent.id).where(MedicalEvent.household_member_id == member_id) if member_id else select(MedicalEvent.id).where(False)
         database.execute(delete(DocumentLink).where(DocumentLink.source_document_id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))

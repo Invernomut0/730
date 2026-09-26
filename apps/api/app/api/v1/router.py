@@ -17,6 +17,7 @@ from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.models.entities import (
+    AIExecution,
     Document,
     DocumentLink,
     DocumentPage,
@@ -315,6 +316,50 @@ async def analyze_stored_documents(db: Session = Depends(get_db), settings: Sett
         db.commit()
         raise HTTPException(status_code=503, detail="The processing queue is unavailable. No document was started.") from error
     return DocumentAnalysisResponse(documents_queued=len(documents))
+
+
+@router.post("/documents/{document_id}/reanalyze", response_model=DocumentAnalysisResponse)
+async def reanalyze_document(document_id: UUID, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DocumentAnalysisResponse:
+    """Discard one document's derived analysis and enqueue a fresh local pass."""
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    if document.duplicate_of_id is not None:
+        raise HTTPException(status_code=409, detail="Duplicate documents reuse the original document analysis.")
+    active_states = {DocumentState.EXTRACTING, DocumentState.OCR, DocumentState.CLASSIFYING, DocumentState.STRUCTURING}
+    if document.state in active_states:
+        raise HTTPException(status_code=409, detail="Document analysis is already in progress.")
+    event_ids = list(db.scalars(select(DocumentLink.medical_event_id).where(
+        (DocumentLink.source_document_id == document.id) | (DocumentLink.target_document_id == document.id),
+        DocumentLink.medical_event_id.is_not(None),
+    )))
+    db.execute(delete(DocumentLink).where((DocumentLink.source_document_id == document.id) | (DocumentLink.target_document_id == document.id)))
+    if event_ids:
+        linked_event_ids = select(DocumentLink.medical_event_id).where(DocumentLink.medical_event_id.is_not(None))
+        db.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(event_ids), ~MedicalEvent.id.in_(linked_event_ids)))
+    db.execute(delete(Prescription).where(Prescription.document_id == document.id))
+    db.execute(delete(ExpenseDocument).where(ExpenseDocument.document_id == document.id))
+    db.execute(delete(MedicalReport).where(MedicalReport.document_id == document.id))
+    db.execute(delete(ClinicalDocument).where(ClinicalDocument.document_id == document.id))
+    db.execute(delete(DocumentPage).where(DocumentPage.document_id == document.id))
+    db.execute(delete(AIExecution).where(AIExecution.document_id == document.id))
+    db.execute(delete(ReviewTask).where(ReviewTask.entity_type == "Document", ReviewTask.entity_id == document.id))
+    document.state = DocumentState.EXTRACTING
+    document.document_type = DocumentType.UNKNOWN
+    document.patient_id = None
+    document.document_date = None
+    document.logical_name = None
+    record_audit(db, "document.analysis_forced", "Document", document.id)
+    db.commit()
+    try:
+        redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+        await redis.enqueue_job("process_document", str(document.id))
+        await redis.aclose()
+    except OSError as error:
+        document.state = DocumentState.STORED
+        db.commit()
+        raise HTTPException(status_code=503, detail="The processing queue is unavailable. The document was not started.") from error
+    return DocumentAnalysisResponse(documents_queued=1)
 
 
 @router.delete("/documents/{document_id}", response_model=DeletionResponse)

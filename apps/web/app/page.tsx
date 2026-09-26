@@ -34,6 +34,7 @@ export default function Home() {
   const [message, setMessage] = useState("Carica una prescrizione o fattura per iniziare.");
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [reanalyzingDocumentId, setReanalyzingDocumentId] = useState<string>();
   const [pages, setPages] = useState<DocumentPage[]>([]);
   const [selectedWord, setSelectedWord] = useState<WordBox>();
   const [resetConfirmation, setResetConfirmation] = useState("");
@@ -81,6 +82,24 @@ export default function Home() {
     setMessage(result.documents_queued ? `${result.documents_queued} documenti sono ora in analisi locale.` : "Non ci sono documenti in attesa o bloccati in analisi.");
     await refresh();
   }
+  async function reanalyzeDocument(document: Document): Promise<void> {
+    setReanalyzingDocumentId(document.id);
+    setMessage(`Nuova analisi di ${document.logical_name ?? document.original_filename} in avvio…`);
+    try {
+      const response = await fetch(`${API}/api/v1/documents/${document.id}/reanalyze`, { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json() as { detail?: string };
+        setMessage(body.detail ?? "Impossibile riavviare l’analisi del documento.");
+        return;
+      }
+      setMessage(`Analisi rinforzata per ${document.logical_name ?? document.original_filename}.`);
+      await refresh();
+    } catch {
+      setMessage("Connessione non disponibile: l’analisi del documento non è stata avviata.");
+    } finally {
+      setReanalyzingDocumentId(undefined);
+    }
+  }
   async function resetDatabase(): Promise<void> {
     if (resetConfirmation !== "RESET") return;
     setResetting(true);
@@ -109,7 +128,7 @@ export default function Home() {
     <section><div className="section-heading"><div><h2>Documenti elaborati</h2><p className="section-kicker">{documents.length} nel dossier</p></div><button className="action-button" disabled={analyzing || !documents.some(document => ["STORED", "EXTRACTING", "STRUCTURING"].includes(document.state) && !document.duplicate_of_id)} onClick={() => void analyzeDocuments()} type="button">{analyzing ? "Analisi in avvio…" : "Avvia/riprova analisi"}</button></div>
       <div className="document-list">
         {documents.length === 0 ? <p className="empty-state">Nessun documento caricato.</p> : documents.map((document) => <article key={document.id} className="document-row">
-          <button onClick={() => void selectDocument(document.id)} className="document-name"><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className="document-meta document-state">{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span><button className="delete-button" type="button" onClick={() => void deleteDocument(document)}>Elimina</button>
+          <button onClick={() => void selectDocument(document.id)} className="document-name"><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className="document-meta document-state">{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span><div className="document-actions"><button className="text-button" disabled={Boolean(document.duplicate_of_id) || Boolean(reanalyzingDocumentId) || ["EXTRACTING", "OCR", "CLASSIFYING", "STRUCTURING"].includes(document.state)} onClick={() => void reanalyzeDocument(document)} type="button">{reanalyzingDocumentId === document.id ? "Rianalisi…" : "Rinforza analisi"}</button><button className="delete-button" type="button" onClick={() => void deleteDocument(document)}>Elimina</button></div>
         </article>)}
       </div>
       {documents.find(item => item.id === selectedDocumentId) && <section className="panel viewer" id="document-viewer"><div><h3>Anteprima originale</h3><div className="viewer-preview-wrap"><img className="viewer-preview" alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} />{(pages[0]?.blocks?.words ?? []).map((word, index) => <button aria-label={`Mostra dettaglio parola ${word.text}`} className={`word-box${selectedWord === word ? " selected" : ""}`} key={`${word.text}-${index}`} onClick={() => setSelectedWord(word)} style={{ left: `${word.left * 100}%`, top: `${word.top * 100}%`, width: `${word.width * 100}%`, height: `${word.height * 100}%` }} title={word.text} type="button" />)}</div></div><div className="viewer-copy"><h3>{documents.find(item => item.id === selectedDocumentId)?.extraction ? "Campi estratti" : "Testo estratto"}</h3><p>{pages[0]?.blocks?.words?.length ? `${pages[0].blocks.words.length} parole mappate sull'anteprima.` : "Coordinate delle parole non ancora disponibili."}</p>{selectedWord && <div className="word-detail"><strong>{selectedWord.text}</strong><span>Pagina 1 · x {Math.round(selectedWord.left * 100)}% · y {Math.round(selectedWord.top * 100)}% · {Math.round(selectedWord.width * 100)}% × {Math.round(selectedWord.height * 100)}%</span></div>}<pre>{documents.find(item => item.id === selectedDocumentId)?.extraction ? JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction, null, 2) : pages.map(page => page.text).join("\n\n") || "Testo in attesa di estrazione."}</pre></div></section>}

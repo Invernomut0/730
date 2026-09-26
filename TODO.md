@@ -129,6 +129,7 @@
 - [x] Thirty-minute local model request timeout
 - [x] Small-model structured extraction with itemized drug and lab-test matching
 - [x] Generic structured fallback for documents requiring review
+- [x] Per-document forced local reanalysis action
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

@@ -140,6 +140,11 @@ An in-flight local model request is allowed to finish so that no partially
 committed document state is produced; use **Riprendi job** before starting new
 analysis.
 
+Each original document in the Inbox has a **Rinforza analisi** action. It
+removes only that document's derived extraction, review, and generated link
+data, then queues a fresh local analysis. The action is unavailable while that
+document is already processing or when it is an exact duplicate.
+
 The local web origins `http://localhost:3000` and `http://127.0.0.1:3000` can
 both save these settings through the API's CORS-protected `PUT` endpoint.
 
