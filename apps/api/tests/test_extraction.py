@@ -117,6 +117,30 @@ def test_medical_report_extraction_preserves_patient_date_and_activities() -> No
     assert report.follow_up_activities[0].scheduled_date.isoformat() == "2024-06-25"
 
 
+def test_laboratory_report_preserves_each_printed_result_without_interpretation() -> None:
+    report = MedicalReportExtraction.model_validate({
+        "report_kind": "LABORATORY_RESULTS",
+        "laboratory_results": [
+            {
+                "analyte": {"value": "Emocromo", "confidence": 0.99},
+                "result": {"value": "5.12", "confidence": 0.99},
+                "unit": {"value": "milioni/uL", "confidence": 0.98},
+                "reference_range": {"value": "4.20 - 5.80", "confidence": 0.98},
+            },
+            {
+                "analyte": {"value": "Creatinina", "confidence": 0.99},
+                "result": {"value": "0.89", "confidence": 0.99},
+                "unit": {"value": "mg/dL", "confidence": 0.98},
+            },
+        ],
+    })
+
+    assert report.report_kind == "LABORATORY_RESULTS"
+    assert report.laboratory_results[0].analyte.value == "Emocromo"
+    assert report.laboratory_results[0].reference_range and report.laboratory_results[0].reference_range.value == "4.20 - 5.80"
+    assert report.laboratory_results[1].result and report.laboratory_results[1].result.value == "0.89"
+
+
 def test_medical_report_extraction_normalizes_numeric_string_bounding_boxes() -> None:
     report = MedicalReportExtraction.model_validate({
         "patient": {"value": "Laura Bianchi", "confidence": 0.99, "bbox": ["0.12", "0.24", "0.31", "0.08"]},

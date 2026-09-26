@@ -169,6 +169,11 @@ with `90.` and explicit analytes (including `VITAMINA D (25 OH)`) as laboratory
 tests, even if a local model initially places one in the drug list. Printed AIC
 codes and dosage forms identify medicines instead.
 
+Medical reports with a printed laboratory table are identified as
+`LABORATORY_RESULTS`. The extraction preserves each printed analyte, result,
+unit, reference range, and explicit flag without interpreting the result or
+making a clinical diagnosis.
+
 `LMSTUDIO_REQUEST_TIMEOUT_SECONDS` defaults to `1800` (30 minutes), allowing
 large local models to complete long structured extractions without premature retry.
 

@@ -167,11 +167,23 @@ class ClinicalActivityExtraction(BaseModel):
         return normalize_italian_date(value)
 
 
+class LaboratoryResultExtraction(BaseModel):
+    """One printed laboratory result without clinical interpretation."""
+
+    analyte: EvidenceValue
+    result: EvidenceValue | None = None
+    unit: EvidenceValue | None = None
+    reference_range: EvidenceValue | None = None
+    flag: EvidenceValue | None = None
+
+
 class MedicalReportExtraction(BaseModel):
     report_date: date | None = None
     patient: EvidenceValue | None = None
     patient_fiscal_code: EvidenceValue | None = None
     provider: EvidenceValue | None = None
+    report_kind: str | None = Field(default=None, pattern="^(LABORATORY_RESULTS|CLINICAL_REPORT)$")
+    laboratory_results: list[LaboratoryResultExtraction] = Field(default_factory=list)
     diagnosis_evidence: list[DiagnosisEvidenceExtraction] = Field(default_factory=list)
     requested_visits: list[ClinicalActivityExtraction] = Field(default_factory=list)
     operations: list[ClinicalActivityExtraction] = Field(default_factory=list)

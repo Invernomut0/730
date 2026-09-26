@@ -132,6 +132,7 @@
 - [x] Per-document forced local reanalysis action
 - [x] Aligned per-document analysis and deletion actions
 - [x] Deterministic laboratory-test and medicine item normalization
+- [x] Structured laboratory-result report recognition
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

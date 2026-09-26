@@ -26,6 +26,21 @@ function evidenceList(value: unknown, nestedKey?: string): string | undefined {
   return values.length ? values.join(" · ") : undefined;
 }
 
+function laboratoryResultsSummary(value: unknown): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const entries = value.map(item => {
+    if (typeof item !== "object" || item === null) return undefined;
+    const result = item as Record<string, unknown>;
+    const analyte = evidenceValue(result.analyte);
+    const measured = evidenceValue(result.result);
+    const unit = evidenceValue(result.unit);
+    return analyte ? `${analyte}${measured ? `: ${measured}${unit ? ` ${unit}` : ""}` : ""}` : undefined;
+  }).filter((item): item is string => Boolean(item));
+  if (!entries.length) return undefined;
+  const visible = entries.slice(0, 6);
+  return `${visible.join(" · ")}${entries.length > visible.length ? ` · +${entries.length - visible.length} altri` : ""}`;
+}
+
 function extractedSummary(document: Document): Array<[string, string]> {
   const extraction = document.extraction;
   if (!extraction) return [["Stato", "Analisi in corso"]];
@@ -41,13 +56,17 @@ function extractedSummary(document: Document): Array<[string, string]> {
     ?? evidenceList(extraction.services)
     ?? evidenceList(extraction.laboratory_tests)
     ?? evidenceList(extraction.medications);
+  const laboratoryResults = laboratoryResultsSummary(extraction.laboratory_results);
+  const reportKind = extraction.report_kind === "LABORATORY_RESULTS" ? "Esami di laboratorio" : undefined;
   return [
     ["Nome", evidenceValue(extraction.patient) ?? evidenceValue(extraction.patient_name) ?? "Non rilevato"],
     ["Data", String(extraction.document_date ?? extraction.invoice_date ?? extraction.report_date ?? "Non rilevata")],
     ["Quesito diagnostico", diagnosis ?? "Non rilevato"],
     ["Tipologia", document.document_type.replaceAll("_", " ")],
+    ...(reportKind ? [["Categoria referto", reportKind] as [string, string]] : []),
     ["Dottore", evidenceValue(extraction.doctor) ?? evidenceValue(extraction.provider) ?? evidenceValue(extraction.provider_name) ?? "Non rilevato"],
     ["Servizio richiesto", service ?? "Non rilevato"],
+    ...(laboratoryResults ? [["Risultati laboratorio", laboratoryResults] as [string, string]] : []),
   ];
 }
 
