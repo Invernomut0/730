@@ -81,10 +81,11 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             document.state = DocumentState.STRUCTURING
             db.commit()
             try:
+                extraction_model = settings.lmstudio_extraction_model or settings.lmstudio_simple_model
                 try:
-                    await structure_document(db, document, text, LMStudioProvider(settings))
+                    await structure_document(db, document, text, LMStudioProvider(settings, extraction_model))
                 except LLMUnavailable:
-                    if not settings.lmstudio_fallback_model or settings.lmstudio_fallback_model == settings.lmstudio_main_model:
+                    if not settings.lmstudio_fallback_model or settings.lmstudio_fallback_model == extraction_model:
                         raise
                     await structure_document(db, document, text, LMStudioProvider(settings, settings.lmstudio_fallback_model))
                 cluster_document(

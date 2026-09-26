@@ -76,7 +76,7 @@ export function LLMSettingsPanel(): ReactElement {
   return <section className="llm-settings panel" aria-label="Impostazioni LLM e job">
     <header><p className="eyebrow">CONTROLLO MODELLI</p><h2>LLM e job locali</h2><p>Le modifiche non includono chiavi o segreti e si applicano ai nuovi job.</p></header>
     <div className="llm-settings-grid">
-      <label>Analisi documenti<select value={settings.document_model} onChange={event => update("document_model", event.target.value)}>{options(settings.document_model)}</select></label>
+      <label>Estrazione dati (modello leggero)<select value={settings.document_model} onChange={event => update("document_model", event.target.value)}>{options(settings.document_model)}</select></label>
       <label>Classificazione incerta<select value={settings.classification_model} onChange={event => update("classification_model", event.target.value)}>{options(settings.classification_model)}</select></label>
       <label>Fallback estrazione<select value={settings.fallback_model} onChange={event => update("fallback_model", event.target.value)}>{options(settings.fallback_model)}</select></label>
       <label>Creazione relazioni<select value={settings.relation_model} onChange={event => update("relation_model", event.target.value)}>{options(settings.relation_model)}</select></label>

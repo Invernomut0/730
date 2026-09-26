@@ -36,6 +36,45 @@ def test_incompatible_specialties_never_link_on_generic_visit_word() -> None:
     assert "service_matches_prescription" not in candidate.evidence
 
 
+def test_all_itemized_drugs_and_lab_tests_must_match_invoice_lines() -> None:
+    patient = uuid4()
+    candidate = score_prescription_invoice(
+        patient,
+        patient,
+        date(2026, 2, 1),
+        date(2026, 2, 4),
+        [],
+        ["Tachipirina 1000", "Augmentin 875", "Emocromo completo", "AST"],
+        ["Tachipirina 1000 mg", "Augmentin 875 mg"],
+        ["Emocromo completo", "AST"],
+        ["Tachipirina 1000", "Augmentin 875"],
+        ["Emocromo completo", "AST"],
+    )
+
+    assert candidate.score >= 0.95
+    assert "all_prescribed_drugs_match_invoice" in candidate.evidence
+    assert "all_requested_lab_tests_match_invoice" in candidate.evidence
+
+
+def test_missing_one_itemized_lab_test_blocks_invoice_link() -> None:
+    patient = uuid4()
+    candidate = score_prescription_invoice(
+        patient,
+        patient,
+        date(2026, 2, 1),
+        date(2026, 2, 4),
+        [],
+        ["Emocromo completo"],
+        [],
+        ["Emocromo completo", "TSH"],
+        [],
+        ["Emocromo completo"],
+    )
+
+    assert candidate.score == 0
+    assert candidate.conflicts == ["requested_lab_tests_missing_from_invoice"]
+
+
 def test_explicit_patient_mismatch_never_auto_links() -> None:
     candidate = score_prescription_invoice(
         uuid4(),

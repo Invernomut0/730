@@ -61,6 +61,28 @@ def test_extractions_normalize_unambiguous_italian_dates() -> None:
     assert invoice.invoice_date is not None and invoice.invoice_date.isoformat() == "2026-09-25"
 
 
+def test_prescription_and_invoice_preserve_itemized_drugs_and_lab_tests() -> None:
+    prescription = PrescriptionExtraction.model_validate({
+        "prescribed_drugs": [
+            {"value": "Tachipirina 1000 mg", "confidence": 0.98},
+            {"value": "Augmentin 875 mg", "confidence": 0.96},
+        ],
+        "requested_lab_tests": [
+            {"value": "Emocromo completo", "confidence": 0.98},
+            {"value": "AST", "confidence": 0.95},
+        ],
+    })
+    invoice = InvoiceExtraction.model_validate({
+        "billed_drugs": [{"value": "Tachipirina 1000", "confidence": 0.98}],
+        "billed_lab_tests": [{"value": "Emocromo completo", "confidence": 0.98}],
+    })
+
+    assert [item.value for item in prescription.prescribed_drugs] == ["Tachipirina 1000 mg", "Augmentin 875 mg"]
+    assert [item.value for item in prescription.requested_lab_tests] == ["Emocromo completo", "AST"]
+    assert [item.value for item in invoice.billed_drugs] == ["Tachipirina 1000"]
+    assert [item.value for item in invoice.billed_lab_tests] == ["Emocromo completo"]
+
+
 def test_medical_report_extraction_preserves_patient_date_and_activities() -> None:
     report = MedicalReportExtraction.model_validate({
         "report_date": "20/01/2026",

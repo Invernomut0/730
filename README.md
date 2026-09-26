@@ -113,15 +113,14 @@ permissions. Adjust the multipart allowance with
 `MAX_UPLOAD_REQUEST_OVERHEAD_BYTES` only when a trusted proxy adds larger
 request metadata.
 
-Structured extraction uses the configured local LM Studio model and allows 180
-seconds by default, which accommodates larger models running on local hardware.
-Set `LMSTUDIO_REQUEST_TIMEOUT_SECONDS` to a positive value if the local model
-needs a different bound. Exact duplicate uploads are retained as immutable
-records but deliberately do not invoke OCR or the LLM a second time.
+Structured extraction uses `LMSTUDIO_EXTRACTION_MODEL`, which defaults to the
+small local `qwen/qwen3-vl-8b` model. It allows 1800 seconds by default; the
+configured large fallback is used only when that local extraction fails. Exact
+duplicate uploads are retained as immutable records but deliberately do not
+invoke OCR or the LLM a second time.
 
-`LMSTUDIO_MAIN_MODEL` defaults to
-`qwen3.8-27b-abliterated-mtplx-optimized-speed` for typed extraction. The same
-27B model, configured by `LMSTUDIO_RELATION_MODEL`, judges only
+`LMSTUDIO_MAIN_MODEL` retains the primary local model identifier for health and
+legacy integrations. The 27B model configured by `LMSTUDIO_RELATION_MODEL` judges only
 prescription/invoice pairs that already pass deterministic patient and 0–30 day
 chronology gates; it can create a proposed relationship but never override those
 gates. `LMSTUDIO_SIMPLE_MODEL` is reserved for one cheap, audited fallback:
@@ -145,6 +144,12 @@ Document relationships require a matching clinical specialty or a shared
 meaningful service term. Generic wording such as "visita" is never sufficient;
 the local worker processes at most two structured documents concurrently to avoid
 exhausting the configured local model.
+
+For prescriptions, the extraction contract separately lists every prescribed
+drug and every requested individual laboratory test. Invoices separately list
+billed drugs and laboratory tests. A prescription-to-invoice relation is blocked
+when even one listed drug or test has no distinct matching billed line; the
+large relation model cannot override this safety gate.
 
 `LMSTUDIO_REQUEST_TIMEOUT_SECONDS` defaults to `1800` (30 minutes), allowing
 large local models to complete long structured extractions without premature retry.

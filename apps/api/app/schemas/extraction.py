@@ -68,6 +68,7 @@ class PrescriptionExtraction(BaseModel):
     diagnosis_evidence: list[DiagnosisEvidenceExtraction] = Field(default_factory=list)
     requested_services: list[EvidenceValue] = Field(default_factory=list)
     prescribed_drugs: list[EvidenceValue] = Field(default_factory=list)
+    requested_lab_tests: list[EvidenceValue] = Field(default_factory=list)
 
     @field_validator("document_date", mode="before")
     @classmethod
@@ -89,6 +90,8 @@ class InvoiceExtraction(BaseModel):
     patient_name: EvidenceValue | None = None
     patient_fiscal_code: EvidenceValue | None = None
     services: list[InvoiceService] = Field(default_factory=list)
+    billed_drugs: list[EvidenceValue] = Field(default_factory=list)
+    billed_lab_tests: list[EvidenceValue] = Field(default_factory=list)
     net_amount: Decimal | None = None
     vat: Decimal | None = None
     stamp_duty: Decimal | None = None

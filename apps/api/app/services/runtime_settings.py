@@ -14,6 +14,7 @@ _JOBS_PAUSED_KEY = "healthdocs:jobs:paused"
 _LLM_FIELDS = {
     "lmstudio_main_model",
     "lmstudio_simple_model",
+    "lmstudio_extraction_model",
     "lmstudio_fallback_model",
     "lmstudio_relation_model",
     "rizzo_flow_enabled",

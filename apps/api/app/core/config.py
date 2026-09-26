@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     lmstudio_api_token: str = ""
     lmstudio_main_model: str = ""
     lmstudio_simple_model: str = "qwen/qwen3-vl-8b"
+    lmstudio_extraction_model: str = "qwen/qwen3-vl-8b"
     lmstudio_fallback_model: str = "qwen3.8-27b-abliterated-mtplx-optimized-speed"
     lmstudio_relation_model: str = "qwen3.8-27b-abliterated-mtplx-optimized-speed"
     lmstudio_vision_model: str = ""

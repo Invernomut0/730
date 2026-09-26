@@ -80,6 +80,8 @@ class DocumentAnalysisResponse(BaseModel):
 
 
 class LLMSettingsUpdate(BaseModel):
+    """Non-secret model choices used by newly started local processing jobs."""
+
     document_model: str = Field(min_length=1, max_length=255)
     classification_model: str = Field(min_length=1, max_length=255)
     fallback_model: str = Field(min_length=1, max_length=255)

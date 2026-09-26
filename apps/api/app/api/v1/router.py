@@ -178,7 +178,7 @@ async def available_models(settings: Settings = Depends(get_settings)) -> dict[s
 def llm_settings_response(settings: Settings, paused: bool) -> LLMSettingsResponse:
     """Map internal setting names to the operator-facing LLM settings contract."""
     return LLMSettingsResponse(
-        document_model=settings.lmstudio_main_model,
+        document_model=settings.lmstudio_extraction_model,
         classification_model=settings.lmstudio_simple_model,
         fallback_model=settings.lmstudio_fallback_model,
         relation_model=settings.lmstudio_relation_model,
@@ -198,7 +198,7 @@ async def get_llm_settings(settings: Settings = Depends(get_settings)) -> LLMSet
 async def update_llm_settings(payload: LLMSettingsUpdate, settings: Settings = Depends(get_settings)) -> LLMSettingsResponse:
     """Save non-secret local model routing for subsequently started worker jobs."""
     effective = await save_runtime_llm_settings(settings, {
-        "lmstudio_main_model": payload.document_model,
+        "lmstudio_extraction_model": payload.document_model,
         "lmstudio_simple_model": payload.classification_model,
         "lmstudio_fallback_model": payload.fallback_model,
         "lmstudio_relation_model": payload.relation_model,

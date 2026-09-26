@@ -24,21 +24,21 @@ async def structure_document(db: Session, document: Document, text: str, provide
         DocumentType.MEDICAL_REPORT: MedicalReportExtraction,
     }
     prompt_by_type = {
-        DocumentType.PRESCRIPTION: "prescription-extractor",
-        DocumentType.INVOICE: "invoice-extractor",
-        DocumentType.MEDICAL_REPORT: "medical-report-extractor",
+        DocumentType.PRESCRIPTION: ("prescription-extractor", "v2"),
+        DocumentType.INVOICE: ("invoice-extractor", "v2"),
+        DocumentType.MEDICAL_REPORT: ("medical-report-extractor", "v1"),
     }
     schema = schema_by_type[document.document_type]
-    prompt_name = prompt_by_type[document.document_type]
-    prompt_path = Path("/prompts") / prompt_name / "v1.md"
+    prompt_name, prompt_version = prompt_by_type[document.document_type]
+    prompt_path = Path("/prompts") / prompt_name / f"{prompt_version}.md"
     prompt = f"{prompt_path.read_text()}\n\nDocument text:\n{text}"
     execution = AIExecution(
         document_id=document.id,
         provider="lmstudio",
         model=provider.model_id,
         prompt_name=prompt_name,
-        prompt_version="v1",
-        schema_version="v1",
+        prompt_version=prompt_version,
+        schema_version=prompt_version,
         input_hash=hashlib.sha256(text.encode()).hexdigest(),
         status="STARTED",
     )

@@ -154,7 +154,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert invoice_document.state == DocumentState.EXTRACTING
         with TestClient(app) as client:
             saved_settings = client.put("/api/v1/settings/llm", json={
-                "document_model": "large-model",
+                "document_model": "small-extraction-model",
                 "classification_model": "small-model",
                 "fallback_model": "fallback-model",
                 "relation_model": "relation-model",
@@ -165,6 +165,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
             stopped = client.post("/api/v1/settings/jobs/stop")
             resumed = client.post("/api/v1/settings/jobs/resume")
         assert saved_settings.status_code == 200
+        assert saved_settings.json()["document_model"] == "small-extraction-model"
         assert saved_settings.json()["relation_model"] == "relation-model"
         assert reloaded_settings.json()["relation_model"] == "relation-model"
         assert stopped.json()["jobs_paused"] is True

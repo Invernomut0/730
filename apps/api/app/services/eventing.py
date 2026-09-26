@@ -25,6 +25,30 @@ def _services(extraction: dict[str, object], key: str) -> list[str]:
     return result
 
 
+def _evidence_values(extraction: dict[str, object], key: str) -> list[str]:
+    """Read scalar extracted prescription/invoice item evidence without mutation."""
+    values = extraction.get(key, [])
+    if not isinstance(values, list):
+        return []
+    return [value["value"] for value in values if isinstance(value, dict) and isinstance(value.get("value"), str)]
+
+
+def _link_candidate(source: Prescription, target: ExpenseDocument):
+    """Build one safety-first candidate from services and itemized clinical evidence."""
+    return score_prescription_invoice(
+        source.patient_id,
+        target.patient_id,
+        source.prescription_date,
+        target.invoice_date,
+        _services(source.extraction, "requested_services"),
+        _services(target.extraction, "services"),
+        _evidence_values(source.extraction, "prescribed_drugs"),
+        _evidence_values(source.extraction, "requested_lab_tests"),
+        _evidence_values(target.extraction, "billed_drugs"),
+        _evidence_values(target.extraction, "billed_lab_tests"),
+    )
+
+
 def medical_event_title(prescription: Prescription, invoice: ExpenseDocument) -> str:
     """Create a concise, human-readable event title from extracted clinical services."""
     services = _services(prescription.extraction, "requested_services") or _services(invoice.extraction, "services")
@@ -62,7 +86,7 @@ def cluster_document(db: Session, document: Document, auto_confirm_threshold: fl
         exists = db.scalar(select(DocumentLink).where(DocumentLink.source_document_id == source.document_id, DocumentLink.target_document_id == target.document_id))
         if exists:
             continue
-        candidate = score_prescription_invoice(source.patient_id, target.patient_id, source.prescription_date, target.invoice_date, _services(source.extraction, "requested_services"), _services(target.extraction, "services"))
+        candidate = _link_candidate(source, target)
         if candidate.conflicts:
             continue
         if candidate.score >= auto_confirm_threshold:
@@ -103,22 +127,15 @@ async def cluster_document_with_relation_model(
     for source, target in pairs:
         if db.scalar(select(DocumentLink).where(DocumentLink.source_document_id == source.document_id, DocumentLink.target_document_id == target.document_id)):
             continue
-        candidate = score_prescription_invoice(
-            source.patient_id,
-            target.patient_id,
-            source.prescription_date,
-            target.invoice_date,
-            _services(source.extraction, "requested_services"),
-            _services(target.extraction, "services"),
-        )
+        candidate = _link_candidate(source, target)
         if candidate.conflicts or not candidate.evidence:
             continue
         prompt = (
             "Decide whether a prescription and an invoice describe the same health service. "
             "The patient and chronology have already passed deterministic safety checks. "
             "Return related=false when the services are not the same or evidence is insufficient.\n"
-            f"Prescription date: {source.prescription_date}; services: {json.dumps(_services(source.extraction, 'requested_services'), ensure_ascii=False)}\n"
-            f"Invoice date: {target.invoice_date}; services: {json.dumps(_services(target.extraction, 'services'), ensure_ascii=False)}"
+            f"Prescription date: {source.prescription_date}; requested services: {json.dumps(_services(source.extraction, 'requested_services'), ensure_ascii=False)}; prescribed drugs: {json.dumps(_evidence_values(source.extraction, 'prescribed_drugs'), ensure_ascii=False)}; requested lab tests: {json.dumps(_evidence_values(source.extraction, 'requested_lab_tests'), ensure_ascii=False)}\n"
+            f"Invoice date: {target.invoice_date}; billed services: {json.dumps(_services(target.extraction, 'services'), ensure_ascii=False)}; billed drugs: {json.dumps(_evidence_values(target.extraction, 'billed_drugs'), ensure_ascii=False)}; billed lab tests: {json.dumps(_evidence_values(target.extraction, 'billed_lab_tests'), ensure_ascii=False)}"
         )
         decision = await provider.structured_completion(prompt, schema)
         related = decision.get("related") is True

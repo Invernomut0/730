@@ -127,6 +127,7 @@
 - [x] Specialty-safe clinical relation matching and serialized local processing
 - [x] Two-request local model concurrency limit
 - [x] Thirty-minute local model request timeout
+- [x] Small-model structured extraction with itemized drug and lab-test matching
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline
