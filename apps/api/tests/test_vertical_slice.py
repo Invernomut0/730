@@ -86,6 +86,8 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         provider = SyntheticLLMProvider(f"Synthetic {patient_suffix}")
         await structure_document(database, prescription_document, "Synthetic prescription", provider)
         await structure_document(database, invoice_document, "Synthetic invoice", provider)
+        prescription_document.state = DocumentState.COMPLETE
+        invoice_document.state = DocumentState.COMPLETE
         cluster_document(database, invoice_document, auto_confirm_threshold=0.95, suggest_threshold=0.75)
         database.commit()
 
@@ -144,29 +146,22 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert str(event.id) not in {item["id"] for item in proposed.json()}
         assert str(event.id) in {item["id"] for item in confirmed.json()}
         assert rebuilt.status_code == 200
-        assert rebuilt.json()["documents_queued"] == len(queued_documents)
-        assert {str(prescription_document_id), str(invoice_document_id)}.issubset(queued_documents)
+        assert rebuilt.json()["documents_queued"] == 0
+        assert rebuilt.json()["documents_rebuilt"] >= 2
+        assert queued_documents == []
         assert database.scalar(select(MedicalEvent).where(MedicalEvent.id == event.id)) is None
-        assert database.scalar(select(DocumentLink).where(DocumentLink.source_document_id == prescription_document_id, DocumentLink.target_document_id == invoice_document_id)) is None
-        assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document_id)) is None
-        assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id)) is None
+        rebuilt_link = database.scalar(select(DocumentLink).where(
+            DocumentLink.source_document_id == prescription_document_id,
+            DocumentLink.target_document_id == invoice_document_id,
+        ))
+        assert rebuilt_link is not None
+        assert rebuilt_link.medical_event_id != event.id
+        assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document_id)) is not None
+        assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id)) is not None
         database.refresh(prescription_document)
         database.refresh(invoice_document)
-        assert prescription_document.state == DocumentState.STORED
-        assert invoice_document.state == DocumentState.STORED
-        queued_documents.clear()
-        with TestClient(app) as client:
-            analysis = client.post("/api/v1/documents/analyze")
-            duplicate_analysis = client.post("/api/v1/documents/analyze")
-        assert analysis.status_code == 200
-        assert {str(prescription_document_id), str(invoice_document_id)}.issubset(queued_documents)
-        assert duplicate_analysis.json()["documents_queued"] >= 2
-        database.refresh(prescription_document)
-        database.refresh(invoice_document)
-        assert prescription_document.state == DocumentState.EXTRACTING
-        assert invoice_document.state == DocumentState.EXTRACTING
-        assert prescription_document.analysis_started_at is not None
-        assert invoice_document.analysis_started_at is not None
+        assert prescription_document.state == DocumentState.COMPLETE
+        assert invoice_document.state == DocumentState.COMPLETE
         with TestClient(app) as client:
             saved_settings = client.put("/api/v1/settings/llm", json={
                 "document_model": "small-extraction-model",
@@ -186,7 +181,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert stopped.json()["jobs_paused"] is True
         assert resumed.json()["jobs_paused"] is False
         database.refresh(prescription_document)
-        assert prescription_document.state == DocumentState.STORED
+        assert prescription_document.state == DocumentState.COMPLETE
         queued_documents.clear()
         with TestClient(app) as client:
             forced = client.post(f"/api/v1/documents/{prescription_document_id}/reanalyze")

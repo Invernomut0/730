@@ -141,6 +141,7 @@
 - [x] Laboratory-service viewer category for prescription tests
 - [x] Medicine-service viewer category for prescriptions
 - [x] Four concurrent local document-processing jobs
+- [x] Non-destructive relationship rebuild
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

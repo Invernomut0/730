@@ -25,13 +25,13 @@ export function AssociationControls({ event, onApproved, onRejected, onRebuilt }
   }
 
   async function rebuild(): Promise<void> {
-    if (!window.confirm("Eliminare tutte le relazioni e rilanciare l'analisi LLM dei documenti? Saranno ricreate nuove proposte senza duplicati.")) return;
+    if (!window.confirm("Eliminare tutte le relazioni e ricostruirle dagli estratti già completati? I documenti non verranno rianalizzati.")) return;
     setWorking(true);
     const response = await fetch(`${API}/api/v1/medical-events/rebuild-associations`, { method: "POST" });
     setWorking(false);
     if (!response.ok) { setMessage("Impossibile ricostruire le associazioni."); return; }
-    const result = await response.json() as { documents_queued: number };
-    setMessage(`Relazioni azzerate. ${result.documents_queued} documenti sono in analisi LLM per creare la nuova lista.`);
+    const result = await response.json() as { documents_rebuilt: number };
+    setMessage(`Relazioni azzerate e ricostruite da ${result.documents_rebuilt} analisi già completate.`);
     onRebuilt();
   }
 

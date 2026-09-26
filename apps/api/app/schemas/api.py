@@ -160,6 +160,7 @@ class AssociationDecision(BaseModel):
 
 class AssociationRebuildResponse(BaseModel):
     documents_queued: int
+    documents_rebuilt: int
     events_removed: int
 
 

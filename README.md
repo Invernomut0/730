@@ -6,11 +6,11 @@ associations leave the proposed-relations queue and appear in a separate,
 selectable approved-relations archive.
 
 **Rifai le relazioni da zero** removes every existing event, link and related
-review, clears prior structured analysis, and queues every non-duplicate source
-document for a new local LM Studio extraction. The new relation list is built
-only from that fresh LLM analysis. A database uniqueness constraint on each
-prescription/invoice document pair prevents duplicate links, including when
-multiple worker jobs overlap.
+link review, then rebuilds proposals from the existing completed structured
+analyses. It never deletes extracted records, pages, document metadata, or
+original files, and it never queues OCR or document extraction. A database
+uniqueness constraint on each prescription/invoice document pair prevents
+duplicate links.
 
 When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
 **Avvia analisi documenti** above the Inbox. It queues each non-duplicate

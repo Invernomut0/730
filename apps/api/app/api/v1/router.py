@@ -618,34 +618,22 @@ def decide_medical_event_association(event_id: UUID, payload: AssociationDecisio
 
 
 @router.post("/medical-events/rebuild-associations", response_model=AssociationRebuildResponse)
-async def rebuild_associations(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> AssociationRebuildResponse:
-    """Clear all associations and requeue original documents for a fresh local LLM analysis."""
+def rebuild_associations(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> AssociationRebuildResponse:
+    """Rebuild relationships from completed structured analyses without reprocessing documents."""
     event_ids = list(db.scalars(select(MedicalEvent.id)))
-    documents = list(db.scalars(select(Document).where(Document.duplicate_of_id.is_(None))))
+    documents = list(db.scalars(select(Document).where(
+        Document.duplicate_of_id.is_(None),
+        Document.state == DocumentState.COMPLETE,
+    )))
     db.execute(delete(DocumentLink))
     db.execute(delete(MedicalEvent))
-    db.execute(delete(ReviewTask))
-    db.execute(delete(Prescription))
-    db.execute(delete(ExpenseDocument))
-    db.execute(delete(MedicalReport))
-    db.execute(delete(ClinicalDocument))
-    db.execute(delete(DocumentPage))
+    db.execute(delete(ReviewTask).where(ReviewTask.type == ReviewType.LINK_AMBIGUOUS))
     for document in documents:
-        document.state = DocumentState.STORED
-        document.document_type = DocumentType.UNKNOWN
-        document.patient_id = None
-        document.document_date = None
-        document.logical_name = None
-    record_audit(db, "association.rebuilt", "MedicalEvent", UUID(int=0), {"events_removed": len(event_ids), "documents_queued": len(documents)})
+        if document.document_type == DocumentType.INVOICE:
+            cluster_document(db, document, settings.auto_confirm_threshold, settings.suggest_threshold)
+    record_audit(db, "association.rebuilt", "MedicalEvent", UUID(int=0), {"events_removed": len(event_ids), "documents_rebuilt": len(documents)})
     db.commit()
-    try:
-        redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-        for document in documents:
-            await redis.enqueue_job("process_document", str(document.id))
-        await redis.aclose()
-    except OSError as error:
-        raise HTTPException(status_code=503, detail="Relations were cleared, but the processing queue is unavailable. Retry the rebuild.") from error
-    return AssociationRebuildResponse(documents_queued=len(documents), events_removed=len(event_ids))
+    return AssociationRebuildResponse(documents_queued=0, documents_rebuilt=len(documents), events_removed=len(event_ids))
 
 
 @router.get("/medical-events/{event_id}/insurance-evaluation", response_model=InsuranceResponse)
