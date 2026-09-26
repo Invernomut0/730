@@ -164,6 +164,11 @@ billed drugs and laboratory tests. A prescription-to-invoice relation is blocked
 when even one listed drug or test has no distinct matching billed line; the
 large relation model cannot override this safety gate.
 
+Prescription normalization treats Italian laboratory service codes beginning
+with `90.` and explicit analytes (including `VITAMINA D (25 OH)`) as laboratory
+tests, even if a local model initially places one in the drug list. Printed AIC
+codes and dosage forms identify medicines instead.
+
 `LMSTUDIO_REQUEST_TIMEOUT_SECONDS` defaults to `1800` (30 minutes), allowing
 large local models to complete long structured extractions without premature retry.
 

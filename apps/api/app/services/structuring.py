@@ -24,7 +24,7 @@ async def structure_document(db: Session, document: Document, text: str, provide
         DocumentType.OTHER: GenericClinicalExtraction,
     }
     prompt_by_type = {
-        DocumentType.PRESCRIPTION: ("prescription-extractor", "v2"),
+        DocumentType.PRESCRIPTION: ("prescription-extractor", "v3"),
         DocumentType.INVOICE: ("invoice-extractor", "v2"),
         DocumentType.MEDICAL_REPORT: ("medical-report-extractor", "v1"),
         DocumentType.PHARMACY_RECEIPT: ("generic-clinical-extractor", "v1"),

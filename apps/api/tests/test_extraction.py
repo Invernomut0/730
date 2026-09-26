@@ -83,6 +83,23 @@ def test_prescription_and_invoice_preserve_itemized_drugs_and_lab_tests() -> Non
     assert [item.value for item in invoice.billed_lab_tests] == ["Emocromo completo"]
 
 
+def test_prescription_reclassifies_lab_service_codes_and_analytes_as_tests() -> None:
+    prescription = PrescriptionExtraction.model_validate({
+        "prescribed_drugs": [
+            {"value": "VITAMINA D (25 OH)", "source_text": "90.44.6 (0090446) VITAMINA D (25 OH)", "confidence": 0.98},
+            {"value": "Tachipirina 1000", "source_text": "AIC 012345678 CPR", "confidence": 0.98},
+        ],
+        "requested_lab_tests": [
+            {"value": "CREATININA", "source_text": "90.16.3 (0090163.01) CREATININA", "confidence": 0.97},
+            {"value": "CALPROTECTINA FECALE", "source_text": "90.12.A (009012A) CALPROTECTINA FECALE", "confidence": 0.97},
+            {"value": "Augmentin", "source_text": "AIC 123456789 COMPRESSE", "confidence": 0.96},
+        ],
+    })
+
+    assert [item.value for item in prescription.requested_lab_tests] == ["VITAMINA D (25 OH)", "CREATININA", "CALPROTECTINA FECALE"]
+    assert [item.value for item in prescription.prescribed_drugs] == ["Tachipirina 1000", "Augmentin"]
+
+
 def test_medical_report_extraction_preserves_patient_date_and_activities() -> None:
     report = MedicalReportExtraction.model_validate({
         "report_date": "20/01/2026",

@@ -5,8 +5,46 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from math import isfinite
+import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+_LAB_SERVICE_CODE = re.compile(r"(?:^|\s)90\.\d{2}", re.IGNORECASE)
+_MEDICATION_MARKER = re.compile(
+    r"\b(AIC|COMPRESS[AE]|CPR|CAPSUL[AE]|BUSTIN[AE]|GOCCE|SCIROPPO|FLACON[EI]|FIAL[EA]|POMATA|CREMA)\b",
+    re.IGNORECASE,
+)
+_LAB_ANALYTE = re.compile(
+    r"\b(EMOCROMO|CREATININA|CALPROTECTINA|FERRITINA|GLICEMIA|COLESTEROLO|TRIGLICERIDI|TRANSAMINASI|TSH|AST|ALT|VITAMINA\s+D\s*\(\s*25\s*OH\s*\))\b",
+    re.IGNORECASE,
+)
+
+
+def _item_source(item: EvidenceValue) -> str:
+    return f"{item.value} {item.source_text or ''}"
+
+
+def _is_lab_test(item: EvidenceValue) -> bool:
+    """Recognize Italian laboratory service codes and unambiguous analytes."""
+    return bool(_LAB_SERVICE_CODE.search(_item_source(item)) or _LAB_ANALYTE.search(item.value))
+
+
+def _is_medication(item: EvidenceValue) -> bool:
+    """Recognize printed medicine forms without guessing from a product name alone."""
+    return bool(_MEDICATION_MARKER.search(_item_source(item)))
+
+
+def _unique_items(items: list[EvidenceValue]) -> list[EvidenceValue]:
+    """Keep one evidence record per normalized item while preserving source order."""
+    result: list[EvidenceValue] = []
+    seen: set[str] = set()
+    for item in items:
+        key = " ".join(item.value.casefold().split())
+        if key not in seen:
+            result.append(item)
+            seen.add(key)
+    return result
 
 
 def normalize_italian_date(value: object) -> object:
@@ -74,6 +112,19 @@ class PrescriptionExtraction(BaseModel):
     @classmethod
     def normalize_document_date(cls, value: object) -> object:
         return normalize_italian_date(value)
+
+    @model_validator(mode="after")
+    def normalize_item_types(self) -> PrescriptionExtraction:
+        """Correct occasional local-model confusion between analytes and medicines."""
+        drugs: list[EvidenceValue] = []
+        lab_tests: list[EvidenceValue] = []
+        for item in self.prescribed_drugs:
+            (lab_tests if _is_lab_test(item) else drugs).append(item)
+        for item in self.requested_lab_tests:
+            (drugs if _is_medication(item) and not _is_lab_test(item) else lab_tests).append(item)
+        self.prescribed_drugs = _unique_items(drugs)
+        self.requested_lab_tests = _unique_items(lab_tests)
+        return self
 
 
 class InvoiceService(BaseModel):
