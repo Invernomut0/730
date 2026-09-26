@@ -76,6 +76,16 @@ input:hover, select:hover { border-color: #a79888; }
 .viewer-close { padding: 0.38rem 0.6rem; color: var(--navy); background: var(--panel); border: 1px solid var(--navy); border-radius: 999px; font-size: 0.78rem; font-weight: 800; }
 .viewer-close:hover { color: #fff; background: var(--navy); }
 .document-viewer-layer-content { display: grid; grid-template-columns: minmax(14rem, 0.85fr) minmax(0, 1.15fr); gap: 1rem; padding: 1rem; }
+.extracted-summary { display: grid; align-content: start; gap: 1rem; }
+.extracted-summary header h3 { margin: 0; }
+.extracted-summary header .eyebrow { margin-bottom: 0.2rem; }
+.extracted-summary dl { display: grid; gap: 0; margin: 0; border: 1px solid var(--line); }
+.extracted-summary dl div { display: grid; gap: 0.25rem; padding: 0.75rem; border-bottom: 1px solid var(--line); background: #fbf7f0; }
+.extracted-summary dl div:last-child { border-bottom: 0; }
+.extracted-summary dt { color: var(--muted); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.extracted-summary dd { margin: 0; color: var(--navy-deep); font-size: 0.94rem; line-height: 1.35; overflow-wrap: anywhere; }
+.extracted-summary details { color: var(--muted); font-size: 0.82rem; }
+.extracted-summary summary { cursor: pointer; font-weight: 800; }
 
 .panel { margin-top: 2.5rem; padding: clamp(1.25rem, 3vw, 2rem); }
 .panel-title { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; margin-bottom: 1.2rem; }

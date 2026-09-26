@@ -138,6 +138,9 @@ analysis.
 The local web origins `http://localhost:3000` and `http://127.0.0.1:3000` can
 both save these settings through the API's CORS-protected `PUT` endpoint.
 
+When opening a document, the right-hand summary panel presents the extracted
+patient name, date, diagnostic question, document type, clinician, and requested service.
+
 LM Studio reasoning models that leave the OpenAI JSON-schema `content` field
 empty are requested in text mode instead; the API then parses JSON only and
 validates it against the same Pydantic extraction schema before persistence. The

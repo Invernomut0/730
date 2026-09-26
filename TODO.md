@@ -123,6 +123,7 @@
 - [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system
+- [x] Extracted clinical-data side panel in document viewer
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline
