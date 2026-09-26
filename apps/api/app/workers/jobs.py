@@ -9,9 +9,10 @@ from pathlib import Path
 from arq import create_pool
 from arq.connections import RedisSettings
 from arq.cron import cron
+from sqlalchemy.orm import Session
 from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
 from app.adapters.ocr import OCRFailed, TesseractOCRProvider
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
 from app.models.entities import Document, DocumentPage, DocumentState, DocumentType, ReviewTask, ReviewType
 from app.services.extraction import (
@@ -32,6 +33,22 @@ from app.services.pharmacy import import_aifa_csv
 from app.services.runtime_settings import jobs_paused, runtime_settings
 
 _stable_files = StableFileTracker()
+
+
+async def _structure_with_configured_models(
+    db: Session,
+    document: Document,
+    text: str,
+    settings: Settings,
+) -> None:
+    """Use the lightweight extractor first, reserving the large model for failures."""
+    extraction_model = settings.lmstudio_extraction_model or settings.lmstudio_simple_model
+    try:
+        await structure_document(db, document, text, LMStudioProvider(settings, extraction_model))
+    except LLMUnavailable:
+        if not settings.lmstudio_fallback_model or settings.lmstudio_fallback_model == extraction_model:
+            raise
+        await structure_document(db, document, text, LMStudioProvider(settings, settings.lmstudio_fallback_model))
 
 
 async def process_document(_context: dict[str, object], document_id: str) -> None:
@@ -74,40 +91,44 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
                 )
             except LLMUnavailable:
                 pass
-        if document.document_type.value == "UNKNOWN":
-            document.state = DocumentState.REVIEW_REQUIRED
-            db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "insufficient_deterministic_signals"}))
-        else:
-            document.state = DocumentState.STRUCTURING
-            db.commit()
-            try:
-                extraction_model = settings.lmstudio_extraction_model or settings.lmstudio_simple_model
+        if document.document_type == DocumentType.UNKNOWN:
+            document.document_type = DocumentType.OTHER
+        document.state = DocumentState.STRUCTURING
+        db.commit()
+        try:
+            await _structure_with_configured_models(db, document, text, settings)
+            document.state = DocumentState.COMPLETE
+        except LLMUnavailable:
+            original_type = document.document_type
+            if original_type in {DocumentType.PRESCRIPTION, DocumentType.INVOICE, DocumentType.MEDICAL_REPORT}:
+                document.document_type = DocumentType.OTHER
                 try:
-                    await structure_document(db, document, text, LMStudioProvider(settings, extraction_model))
+                    await _structure_with_configured_models(db, document, text, settings)
                 except LLMUnavailable:
-                    if not settings.lmstudio_fallback_model or settings.lmstudio_fallback_model == extraction_model:
-                        raise
-                    await structure_document(db, document, text, LMStudioProvider(settings, settings.lmstudio_fallback_model))
-                cluster_document(
-                    db,
-                    document,
-                    settings.auto_confirm_threshold,
-                    settings.suggest_threshold,
-                )
-                if settings.lmstudio_relation_model:
-                    try:
-                        await cluster_document_with_relation_model(
-                            db,
-                            document,
-                            LMStudioProvider(settings, settings.lmstudio_relation_model),
-                            settings.suggest_threshold,
-                        )
-                    except LLMUnavailable:
-                        pass
-                document.state = DocumentState.COMPLETE
-            except LLMUnavailable:
+                    document.document_type = original_type
+                else:
+                    document.document_type = original_type
+                    document.state = DocumentState.COMPLETE
+            if document.state != DocumentState.COMPLETE:
                 document.state = DocumentState.REVIEW_REQUIRED
                 db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "structured_extraction_unavailable_or_invalid"}))
+        if document.state == DocumentState.COMPLETE:
+            cluster_document(
+                db,
+                document,
+                settings.auto_confirm_threshold,
+                settings.suggest_threshold,
+            )
+            if settings.lmstudio_relation_model:
+                try:
+                    await cluster_document_with_relation_model(
+                        db,
+                        document,
+                        LMStudioProvider(settings, settings.lmstudio_relation_model),
+                        settings.suggest_threshold,
+                    )
+                except LLMUnavailable:
+                    pass
         extension = Path(document.original_filename).suffix.lower() or ".bin"
         date_part = document.document_date.isoformat() if document.document_date else "undated"
         document.logical_name = f"{date_part}_{document.document_type.value.lower()}_{document.sha256[:8]}{extension}"

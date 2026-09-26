@@ -130,3 +130,23 @@ class MedicalReportExtraction(BaseModel):
     @classmethod
     def normalize_report_date(cls, value: object) -> object:
         return normalize_italian_date(value)
+
+
+class GenericClinicalExtraction(BaseModel):
+    """Lenient structured facts retained when no specialist document schema fits."""
+
+    document_date: date | None = None
+    patient: EvidenceValue | None = None
+    patient_fiscal_code: EvidenceValue | None = None
+    provider: EvidenceValue | None = None
+    document_kind: EvidenceValue | None = None
+    summary: EvidenceValue | None = None
+    clinical_findings: list[EvidenceValue] = Field(default_factory=list)
+    medications: list[EvidenceValue] = Field(default_factory=list)
+    laboratory_tests: list[EvidenceValue] = Field(default_factory=list)
+    services: list[EvidenceValue] = Field(default_factory=list)
+
+    @field_validator("document_date", mode="before")
+    @classmethod
+    def normalize_document_date(cls, value: object) -> object:
+        return normalize_italian_date(value)

@@ -34,10 +34,13 @@ function extractedSummary(document: Document): Array<[string, string]> {
       const entry = item as Record<string, unknown>;
       return entry.kind === "DIAGNOSTIC_QUESTION" ? evidenceValue(entry.evidence) : undefined;
     }).find(Boolean) ?? evidenceList(extraction.diagnosis_evidence, "evidence")
-    : undefined;
+    : evidenceValue(extraction.summary) ?? evidenceList(extraction.clinical_findings);
   const service = evidenceList(extraction.requested_services)
     ?? evidenceList(extraction.requested_visits, "evidence")
-    ?? evidenceList(extraction.services, "description");
+    ?? evidenceList(extraction.services, "description")
+    ?? evidenceList(extraction.services)
+    ?? evidenceList(extraction.laboratory_tests)
+    ?? evidenceList(extraction.medications);
   return [
     ["Nome", evidenceValue(extraction.patient) ?? evidenceValue(extraction.patient_name) ?? "Non rilevato"],
     ["Data", String(extraction.document_date ?? extraction.invoice_date ?? extraction.report_date ?? "Non rilevata")],

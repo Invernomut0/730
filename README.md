@@ -119,6 +119,12 @@ configured large fallback is used only when that local extraction fails. Exact
 duplicate uploads are retained as immutable records but deliberately do not
 invoke OCR or the LLM a second time.
 
+Documents classified as `OTHER` or pharmacy receipts use a separate, lenient
+generic clinical schema. If a strict prescription, invoice, or report schema is
+invalid, the pipeline retries with this persistent fallback before opening a
+review. It retains supported patient, date, provider, summary, findings,
+medications, laboratory tests, and services without creating clinical links.
+
 `LMSTUDIO_MAIN_MODEL` retains the primary local model identifier for health and
 legacy integrations. The 27B model configured by `LMSTUDIO_RELATION_MODEL` judges only
 prescription/invoice pairs that already pass deterministic patient and 0–30 day

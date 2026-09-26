@@ -11,6 +11,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models.entities import (
     AIExecution,
+    ClinicalDocument,
     Document,
     DocumentLink,
     DocumentState,
@@ -30,17 +31,28 @@ class SyntheticLLMProvider:
 
     model_id = "synthetic-local-model"
 
+    def __init__(self, patient_name: str = "Laura Bianchi") -> None:
+        self.patient_name = patient_name
+
     async def models(self) -> list[str]:
         return [self.model_id]
 
     async def structured_completion(self, _prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
-        evidence = {"value": "Laura Bianchi", "page": 1, "source_text": "Laura Bianchi", "confidence": 1.0}
+        evidence = {"value": self.patient_name, "page": 1, "source_text": self.patient_name, "confidence": 1.0}
         if schema["title"] == "PrescriptionExtraction":
             return {
                 "document_date": "2026-03-01",
                 "patient": evidence,
                 "diagnosis_evidence": [{"kind": "CLINICAL_INDICATION", "evidence": {"value": "Dolore ginocchio", "page": 1, "source_text": "Dolore ginocchio", "confidence": 0.9}}],
                 "requested_services": [{"value": "visita ortopedica", "page": 1, "source_text": "visita ortopedica", "confidence": 1.0}],
+            }
+        if schema["title"] == "GenericClinicalExtraction":
+            return {
+                "document_date": "2026-03-07",
+                "patient": evidence,
+                "provider": {"value": "Laboratorio locale", "confidence": 0.95},
+                "summary": {"value": "Esiti di laboratorio", "confidence": 0.92},
+                "laboratory_tests": [{"value": "Emocromo completo", "confidence": 0.96}],
             }
         return {
             "invoice_date": "2026-03-05",
@@ -56,11 +68,12 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
     database = SessionLocal()
     household_id = member_id = prescription_document_id = invoice_document_id = None
     try:
+        patient_suffix = uuid4().hex[:12]
         household = Household(name=f"Synthetic family {uuid4()}")
         database.add(household)
         database.flush()
         household_id = household.id
-        member = HouseholdMember(household_id=household.id, first_name="Laura", last_name="Bianchi")
+        member = HouseholdMember(household_id=household.id, first_name="Synthetic", last_name=patient_suffix)
         database.add(member)
         database.flush()
         member_id = member.id
@@ -70,7 +83,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.commit()
         prescription_document_id, invoice_document_id = prescription_document.id, invoice_document.id
 
-        provider = SyntheticLLMProvider()
+        provider = SyntheticLLMProvider(f"Synthetic {patient_suffix}")
         await structure_document(database, prescription_document, "Synthetic prescription", provider)
         await structure_document(database, invoice_document, "Synthetic invoice", provider)
         cluster_document(database, invoice_document, auto_confirm_threshold=0.95, suggest_threshold=0.75)
@@ -183,4 +196,37 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.execute(delete(HouseholdMember).where(HouseholdMember.id == member_id))
         database.execute(delete(Household).where(Household.id == household_id))
         database.commit()
+        database.close()
+
+
+@pytest.mark.asyncio
+async def test_generic_clinical_extraction_persists_fallback_facts() -> None:
+    database = SessionLocal()
+    document_id = None
+    try:
+        document = Document(
+            original_filename="generic-clinical.pdf",
+            mime_type="application/pdf",
+            byte_size=1,
+            sha256="c" * 64,
+            storage_key=f"originals/{uuid4()}.pdf",
+            document_type=DocumentType.OTHER,
+        )
+        database.add(document)
+        database.commit()
+        document_id = document.id
+
+        await structure_document(database, document, "Synthetic generic clinical document", SyntheticLLMProvider())
+
+        extracted = database.scalar(select(ClinicalDocument).where(ClinicalDocument.document_id == document.id))
+        assert extracted is not None
+        assert extracted.provider == "Laboratorio locale"
+        assert extracted.extraction["laboratory_tests"][0]["value"] == "Emocromo completo"
+    finally:
+        if document_id:
+            database.rollback()
+            database.execute(delete(ClinicalDocument).where(ClinicalDocument.document_id == document_id))
+            database.execute(delete(AIExecution).where(AIExecution.document_id == document_id))
+            database.execute(delete(Document).where(Document.id == document_id))
+            database.commit()
         database.close()
