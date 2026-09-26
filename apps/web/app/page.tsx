@@ -5,6 +5,7 @@ import { ChangeEvent, useEffect, useState } from "react";
 import { EventWorkspace } from "./EventWorkspace";
 import { DocumentViewerLayer } from "./DocumentViewerLayer";
 import { FamilyPanel } from "./FamilyPanel";
+import { LLMSettingsPanel } from "./LLMSettingsPanel";
 import { Precompiled730Panel } from "./Precompiled730Panel";
 
 type Document = {
@@ -114,6 +115,7 @@ export default function Home() {
     <FamilyPanel />
     <Precompiled730Panel />
     <EventWorkspace onOpenDocument={id => { void selectDocument(id); }} />
+    <LLMSettingsPanel />
     <section className="reset-zone" aria-labelledby="reset-title">
       <div><p className="eyebrow">ZONA RISERVATA</p><h2 id="reset-title">Azzera il dossier locale</h2><p>Elimina definitivamente tutti i dati del database: documenti, famiglia, eventi, estrazioni, review, cataloghi e audit. I file in <code>data/</code> non vengono rimossi.</p></div>
       <div className="reset-controls"><label>Digita <strong>RESET</strong> per abilitare il comando<input aria-label="Conferma reset database" value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value)} placeholder="RESET" autoComplete="off" /></label><button className="reset-button" type="button" disabled={resetConfirmation !== "RESET" || resetting} onClick={() => void resetDatabase()}>{resetting ? "Azzeramento…" : "Azzera database"}</button></div>

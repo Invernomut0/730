@@ -79,6 +79,24 @@ class DocumentAnalysisResponse(BaseModel):
     documents_queued: int
 
 
+class LLMSettingsUpdate(BaseModel):
+    document_model: str = Field(min_length=1, max_length=255)
+    classification_model: str = Field(min_length=1, max_length=255)
+    fallback_model: str = Field(min_length=1, max_length=255)
+    relation_model: str = Field(min_length=1, max_length=255)
+    rizzo_flow_enabled: bool = False
+    rizzo_flow_base_url: str | None = Field(default=None, max_length=512)
+
+
+class LLMSettingsResponse(LLMSettingsUpdate):
+    jobs_paused: bool
+
+
+class JobControlResponse(BaseModel):
+    jobs_paused: bool
+    queued_jobs_discarded: int
+
+
 class GraphNode(BaseModel):
     id: str
     type: str

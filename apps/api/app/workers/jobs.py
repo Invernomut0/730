@@ -29,6 +29,7 @@ from app.services.structuring import structure_document
 from app.services.thumbnails import generate_thumbnail, thumbnail_path
 from app.services.watched_directory import StableFileTracker
 from app.services.pharmacy import import_aifa_csv
+from app.services.runtime_settings import jobs_paused, runtime_settings
 
 _stable_files = StableFileTracker()
 
@@ -37,6 +38,9 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
     """Perform native extraction and classification; retries do not duplicate pages."""
     db = SessionLocal()
     try:
+        settings = await runtime_settings(get_settings())
+        if await jobs_paused(settings):
+            return
         document = db.get(Document, UUID(document_id))
         if document is None or document.state in {DocumentState.COMPLETE, DocumentState.REVIEW_REQUIRED}:
             return
@@ -46,8 +50,8 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             return
         document.state = DocumentState.EXTRACTING
         db.commit()
-        path = get_settings().storage_root / document.storage_key
-        generate_thumbnail(path, document.mime_type, thumbnail_path(get_settings().storage_root, document.sha256))
+        path = settings.storage_root / document.storage_key
+        generate_thumbnail(path, document.mime_type, thumbnail_path(settings.storage_root, document.sha256))
         pages = []
         if document.mime_type == "application/pdf":
             pages = extract_pdf_text(path)
@@ -60,7 +64,6 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
         text = "\n".join(page.text for page in pages)
         document.state = DocumentState.CLASSIFYING
         document.document_type = classify_document(text)
-        settings = get_settings()
         if document.document_type == DocumentType.UNKNOWN and settings.lmstudio_simple_model:
             try:
                 document.document_type = await classify_document_with_model(
@@ -122,7 +125,9 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
 
 async def scan_watch_directory(_context: dict[str, object]) -> None:
     """Ingest only files that remain stable across two watched-directory scans."""
-    settings = get_settings()
+    settings = await runtime_settings(get_settings())
+    if await jobs_paused(settings):
+        return
     settings.watch_directory.mkdir(parents=True, exist_ok=True)
     for path in settings.watch_directory.iterdir():
         if not path.is_file() or not _stable_files.observe(path):

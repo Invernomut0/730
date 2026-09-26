@@ -49,6 +49,9 @@ from app.schemas.api import (
     HouseholdMemberResponse,
     HouseholdResponse,
     InsuranceResponse,
+    JobControlResponse,
+    LLMSettingsResponse,
+    LLMSettingsUpdate,
     LoginRequest,
     AssociationDecision,
     AssociationRebuildResponse,
@@ -79,6 +82,7 @@ from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aif
 from app.services.database_reset import reset_application_database
 from app.services.deletion import delete_document_group, delete_household
 from app.services.eventing import cluster_document, medical_event_title, refresh_legacy_event_title
+from app.services.runtime_settings import jobs_paused, runtime_settings, save_runtime_llm_settings, set_jobs_paused
 
 router = APIRouter(prefix="/api/v1")
 
@@ -168,6 +172,65 @@ async def available_models(settings: Settings = Depends(get_settings)) -> dict[s
         return {"models": await LMStudioProvider(settings).models()}
     except LLMUnavailable as error:
         raise HTTPException(status_code=503, detail="LM Studio is unavailable.") from error
+
+
+def llm_settings_response(settings: Settings, paused: bool) -> LLMSettingsResponse:
+    """Map internal setting names to the operator-facing LLM settings contract."""
+    return LLMSettingsResponse(
+        document_model=settings.lmstudio_main_model,
+        classification_model=settings.lmstudio_simple_model,
+        fallback_model=settings.lmstudio_fallback_model,
+        relation_model=settings.lmstudio_relation_model,
+        rizzo_flow_enabled=settings.rizzo_flow_enabled,
+        rizzo_flow_base_url=str(settings.rizzo_flow_base_url) if settings.rizzo_flow_base_url else None,
+        jobs_paused=paused,
+    )
+
+
+@router.get("/settings/llm", response_model=LLMSettingsResponse)
+async def get_llm_settings(settings: Settings = Depends(get_settings)) -> LLMSettingsResponse:
+    effective = await runtime_settings(settings)
+    return llm_settings_response(effective, await jobs_paused(settings))
+
+
+@router.put("/settings/llm", response_model=LLMSettingsResponse)
+async def update_llm_settings(payload: LLMSettingsUpdate, settings: Settings = Depends(get_settings)) -> LLMSettingsResponse:
+    """Save non-secret local model routing for subsequently started worker jobs."""
+    effective = await save_runtime_llm_settings(settings, {
+        "lmstudio_main_model": payload.document_model,
+        "lmstudio_simple_model": payload.classification_model,
+        "lmstudio_fallback_model": payload.fallback_model,
+        "lmstudio_relation_model": payload.relation_model,
+        "rizzo_flow_enabled": payload.rizzo_flow_enabled,
+        "rizzo_flow_base_url": payload.rizzo_flow_base_url,
+    })
+    return llm_settings_response(effective, await jobs_paused(settings))
+
+
+@router.post("/settings/jobs/stop", response_model=JobControlResponse)
+async def stop_all_jobs(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> JobControlResponse:
+    """Pause new work, discard queued ARQ jobs, and return nonterminal documents to storage."""
+    try:
+        discarded = await set_jobs_paused(settings, True)
+    except OSError as error:
+        raise HTTPException(status_code=503, detail="The job queue is unavailable.") from error
+    active_states = [DocumentState.EXTRACTING, DocumentState.OCR, DocumentState.CLASSIFYING, DocumentState.STRUCTURING, DocumentState.NORMALIZING, DocumentState.LINKING, DocumentState.EVENT_CLUSTERING, DocumentState.INSURANCE_EVALUATION]
+    documents = list(db.scalars(select(Document).where(Document.state.in_(active_states))))
+    for document in documents:
+        document.state = DocumentState.STORED
+        record_audit(db, "document.analysis_stopped", "Document", document.id)
+    db.commit()
+    return JobControlResponse(jobs_paused=True, queued_jobs_discarded=discarded)
+
+
+@router.post("/settings/jobs/resume", response_model=JobControlResponse)
+async def resume_all_jobs(settings: Settings = Depends(get_settings)) -> JobControlResponse:
+    """Allow new queued work; the operator explicitly starts any returned documents."""
+    try:
+        await set_jobs_paused(settings, False)
+    except OSError as error:
+        raise HTTPException(status_code=503, detail="The job queue is unavailable.") from error
+    return JobControlResponse(jobs_paused=False, queued_jobs_discarded=0)
 
 
 @router.post("/documents", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)

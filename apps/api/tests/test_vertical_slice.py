@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 from uuid import uuid4
 
 import pytest
@@ -98,9 +98,20 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         queued_documents: list[str] = []
 
         class LocalQueue:
+            values: ClassVar[dict[str, str]] = {}
+
             async def enqueue_job(self, name: str, document_id: str) -> None:
                 assert name == "process_document"
                 queued_documents.append(document_id)
+
+            async def get(self, key: str) -> str | None:
+                return self.values.get(key)
+
+            async def set(self, key: str, value: str) -> None:
+                self.values[key] = value
+
+            async def delete(self, key: str) -> int:
+                return int(self.values.pop(key, None) is not None)
 
             async def aclose(self) -> None:
                 return None
@@ -109,6 +120,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
             return LocalQueue()
 
         monkeypatch.setattr("app.api.v1.router.create_pool", create_local_queue)
+        monkeypatch.setattr("app.services.runtime_settings.create_pool", create_local_queue)
         with TestClient(app) as client:
             approved = client.post(f"/api/v1/medical-events/{event.id}/association", json={"action": "approve"})
             proposed = client.get("/api/v1/medical-events?status=PROPOSED")
@@ -140,6 +152,23 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.refresh(invoice_document)
         assert prescription_document.state == DocumentState.EXTRACTING
         assert invoice_document.state == DocumentState.EXTRACTING
+        with TestClient(app) as client:
+            saved_settings = client.put("/api/v1/settings/llm", json={
+                "document_model": "large-model",
+                "classification_model": "small-model",
+                "fallback_model": "fallback-model",
+                "relation_model": "relation-model",
+                "rizzo_flow_enabled": True,
+                "rizzo_flow_base_url": "http://localhost:8788",
+            })
+            stopped = client.post("/api/v1/settings/jobs/stop")
+            resumed = client.post("/api/v1/settings/jobs/resume")
+        assert saved_settings.status_code == 200
+        assert saved_settings.json()["relation_model"] == "relation-model"
+        assert stopped.json()["jobs_paused"] is True
+        assert resumed.json()["jobs_paused"] is False
+        database.refresh(prescription_document)
+        assert prescription_document.state == DocumentState.STORED
     finally:
         event_ids = select(MedicalEvent.id).where(MedicalEvent.household_member_id == member_id) if member_id else select(MedicalEvent.id).where(False)
         database.execute(delete(DocumentLink).where(DocumentLink.source_document_id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))

@@ -117,6 +117,7 @@
 - [x] Manual start for pending local document analysis
 - [x] Recovery action for stalled local document analysis
 - [x] Large-model fallback extraction and guarded relationship matching
+- [x] Runtime LLM routing and safe job pause controls
 - [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system
