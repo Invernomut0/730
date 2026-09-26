@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     lmstudio_base_url: HttpUrl = "http://host.docker.internal:1234/v1"
     lmstudio_api_token: str = ""
     lmstudio_main_model: str = ""
+    lmstudio_simple_model: str = "qwen/qwen3-vl-8b"
+    lmstudio_fallback_model: str = "qwen3.8-27b-abliterated-mtplx-optimized-speed"
+    lmstudio_relation_model: str = "qwen3.8-27b-abliterated-mtplx-optimized-speed"
     lmstudio_vision_model: str = ""
     lmstudio_embedding_model: str = ""
     lmstudio_request_timeout_seconds: int = Field(default=180, gt=0)

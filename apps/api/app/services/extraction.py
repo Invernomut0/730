@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import time
 
 import fitz
 from PIL import Image, ImageSequence
 from pillow_heif import register_heif_opener
+from sqlalchemy.orm import Session
 
+from app.adapters.lmstudio import LLMProvider, LLMUnavailable
 from app.adapters.ocr import OCRProvider
-from app.models.entities import DocumentType
+from app.models.entities import AIExecution, Document, DocumentType
 
 register_heif_opener()
 
@@ -109,3 +113,52 @@ def classify_document(text: str) -> DocumentType:
     if "REFERTO" in normalized:
         return DocumentType.MEDICAL_REPORT
     return DocumentType.UNKNOWN
+
+
+async def classify_document_with_model(
+    db: Session,
+    document: Document,
+    text: str,
+    provider: LLMProvider,
+) -> DocumentType:
+    """Use the small local model only when deterministic document typing is inconclusive."""
+    execution = AIExecution(
+        document_id=document.id,
+        provider="lmstudio",
+        model=provider.model_id,
+        prompt_name="document-classifier",
+        prompt_version="v1",
+        schema_version="v1",
+        input_hash=hashlib.sha256(text.encode()).hexdigest(),
+        status="STARTED",
+    )
+    db.add(execution)
+    db.commit()
+    started = time.monotonic()
+    schema = {
+        "type": "object",
+        "properties": {
+            "document_type": {
+                "type": "string",
+                "enum": [item.value for item in DocumentType if item != DocumentType.UNKNOWN],
+            }
+        },
+        "required": ["document_type"],
+        "additionalProperties": False,
+    }
+    try:
+        decision = await provider.structured_completion(
+            "Classify this healthcare document as exactly one allowed document_type.\n\n"
+            f"Document text:\n{text}",
+            schema,
+        )
+        document_type = DocumentType(str(decision["document_type"]))
+    except (KeyError, TypeError, ValueError, LLMUnavailable) as error:
+        execution.status = "FAILED"
+        execution.duration_ms = int((time.monotonic() - started) * 1000)
+        db.commit()
+        raise LLMUnavailable("Small-model document classification was unavailable or invalid.") from error
+    execution.status = "SUCCEEDED"
+    execution.duration_ms = int((time.monotonic() - started) * 1000)
+    db.commit()
+    return document_type

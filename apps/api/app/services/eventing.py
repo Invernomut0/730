@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.adapters.lmstudio import LLMProvider
 from app.models.entities import Document, DocumentLink, ExpenseDocument, MedicalEvent, Prescription, ReviewTask, ReviewType
 from app.services.linking import score_prescription_invoice
 
@@ -69,3 +72,78 @@ def cluster_document(db: Session, document: Document, auto_confirm_threshold: fl
             db.add(DocumentLink(source_document_id=source.document_id, target_document_id=target.document_id, medical_event_id=event.id, relation_type="RELATED_TO", score=candidate.score, evidence=candidate.evidence, conflicts=candidate.conflicts))
         elif candidate.score >= suggest_threshold:
             db.add(ReviewTask(type=ReviewType.LINK_AMBIGUOUS, entity_type="Document", entity_id=document.id, context={"candidate_document_id": str(target.document_id if prescription else source.document_id), "score": candidate.score, "evidence": candidate.evidence, "conflicts": candidate.conflicts}))
+
+
+async def cluster_document_with_relation_model(
+    db: Session,
+    document: Document,
+    provider: LLMProvider,
+    suggest_threshold: float,
+) -> None:
+    """Ask the designated large local model only about candidate pairs that pass hard safety gates."""
+    prescription = db.scalar(select(Prescription).where(Prescription.document_id == document.id))
+    expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == document.id))
+    if prescription:
+        pairs = [(prescription, item) for item in db.scalars(select(ExpenseDocument))]
+    elif expense:
+        pairs = [(item, expense) for item in db.scalars(select(Prescription))]
+    else:
+        return
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "related": {"type": "boolean"},
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "reason": {"type": "string", "maxLength": 500},
+        },
+        "required": ["related", "confidence", "reason"],
+        "additionalProperties": False,
+    }
+    for source, target in pairs:
+        if db.scalar(select(DocumentLink).where(DocumentLink.source_document_id == source.document_id, DocumentLink.target_document_id == target.document_id)):
+            continue
+        candidate = score_prescription_invoice(
+            source.patient_id,
+            target.patient_id,
+            source.prescription_date,
+            target.invoice_date,
+            _services(source.extraction, "requested_services"),
+            _services(target.extraction, "services"),
+        )
+        if candidate.conflicts or not candidate.evidence:
+            continue
+        prompt = (
+            "Decide whether a prescription and an invoice describe the same health service. "
+            "The patient and chronology have already passed deterministic safety checks. "
+            "Return related=false when the services are not the same or evidence is insufficient.\n"
+            f"Prescription date: {source.prescription_date}; services: {json.dumps(_services(source.extraction, 'requested_services'), ensure_ascii=False)}\n"
+            f"Invoice date: {target.invoice_date}; services: {json.dumps(_services(target.extraction, 'services'), ensure_ascii=False)}"
+        )
+        decision = await provider.structured_completion(prompt, schema)
+        related = decision.get("related") is True
+        confidence = decision.get("confidence")
+        reason = decision.get("reason")
+        if not related or not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not isinstance(reason, str):
+            continue
+        score = min(1.0, candidate.score + 0.5 * float(confidence))
+        if score < suggest_threshold:
+            continue
+        event = MedicalEvent(
+            household_member_id=source.patient_id,
+            title=medical_event_title(source, target),
+            start_date=source.prescription_date,
+            end_date=target.invoice_date,
+            confidence=score,
+        )
+        db.add(event)
+        db.flush()
+        db.add(DocumentLink(
+            source_document_id=source.document_id,
+            target_document_id=target.document_id,
+            medical_event_id=event.id,
+            relation_type="LLM_RELATED_TO",
+            score=score,
+            evidence=[*candidate.evidence, "large_model_relation_match", f"large_model_reason: {reason[:500]}"],
+            conflicts=candidate.conflicts,
+        ))

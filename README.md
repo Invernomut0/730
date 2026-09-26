@@ -119,6 +119,14 @@ Set `LMSTUDIO_REQUEST_TIMEOUT_SECONDS` to a positive value if the local model
 needs a different bound. Exact duplicate uploads are retained as immutable
 records but deliberately do not invoke OCR or the LLM a second time.
 
+`LMSTUDIO_MAIN_MODEL` defaults to
+`qwen3.8-27b-abliterated-mtplx-optimized-speed` for typed extraction. The same
+27B model, configured by `LMSTUDIO_RELATION_MODEL`, judges only
+prescription/invoice pairs that already pass deterministic patient and 0–30 day
+chronology gates; it can create a proposed relationship but never override those
+gates. `LMSTUDIO_SIMPLE_MODEL` is reserved for one cheap, audited fallback:
+classifying a document which the deterministic rules leave as `UNKNOWN`.
+
 LM Studio reasoning models that leave the OpenAI JSON-schema `content` field
 empty are requested in text mode instead; the API then parses JSON only and
 validates it against the same Pydantic extraction schema before persistence. The

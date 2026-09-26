@@ -229,7 +229,7 @@ async def analyze_stored_documents(db: Session = Depends(get_db), settings: Sett
     documents = list(
         db.scalars(
             select(Document).where(
-                Document.state.in_([DocumentState.STORED, DocumentState.EXTRACTING]),
+                Document.state.in_([DocumentState.STORED, DocumentState.EXTRACTING, DocumentState.STRUCTURING]),
                 Document.duplicate_of_id.is_(None),
             )
         )

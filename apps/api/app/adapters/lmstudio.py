@@ -88,13 +88,14 @@ def structured_completion_payload(model: str, prompt: str, schema: dict[str, Any
 class LMStudioProvider:
     """Small, bounded-retry client isolated from domain services."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, model_id: str | None = None) -> None:
         self._settings = settings
+        self._model_id = model_id or settings.lmstudio_main_model
 
     @property
     def model_id(self) -> str:
         """Return the configured primary model identifier for provenance."""
-        return self._settings.lmstudio_main_model
+        return self._model_id
 
     @property
     def embedding_model_id(self) -> str:
@@ -111,10 +112,10 @@ class LMStudioProvider:
             raise LLMUnavailable("LM Studio model discovery failed.") from error
 
     async def structured_completion(self, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
-        if not self._settings.lmstudio_main_model:
+        if not self._model_id:
             raise LLMUnavailable("No main LM Studio model is configured.")
         headers = {"Authorization": f"Bearer {self._settings.lmstudio_api_token}"} if self._settings.lmstudio_api_token else {}
-        payload = structured_completion_payload(self._settings.lmstudio_main_model, prompt, schema)
+        payload = structured_completion_payload(self._model_id, prompt, schema)
         try:
             async with httpx.AsyncClient(timeout=self._settings.lmstudio_request_timeout_seconds) as client:
                 response = await client.post(f"{str(self._settings.lmstudio_base_url).rstrip('/')}/chat/completions", json=payload, headers=headers)

@@ -13,15 +13,16 @@ from app.adapters.lmstudio import LMStudioProvider, LLMUnavailable
 from app.adapters.ocr import OCRFailed, TesseractOCRProvider
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.entities import Document, DocumentPage, DocumentState, ReviewTask, ReviewType
+from app.models.entities import Document, DocumentPage, DocumentState, DocumentType, ReviewTask, ReviewType
 from app.services.extraction import (
     ExtractionFailed,
     classify_document,
+    classify_document_with_model,
     extract_pdf_text,
     extract_with_ocr,
     text_is_insufficient,
 )
-from app.services.eventing import cluster_document
+from app.services.eventing import cluster_document, cluster_document_with_relation_model
 from app.services.ingestion import archive_inbox_file, ingest_content
 from app.services.storage import UnsupportedDocument
 from app.services.structuring import structure_document
@@ -59,6 +60,17 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
         text = "\n".join(page.text for page in pages)
         document.state = DocumentState.CLASSIFYING
         document.document_type = classify_document(text)
+        settings = get_settings()
+        if document.document_type == DocumentType.UNKNOWN and settings.lmstudio_simple_model:
+            try:
+                document.document_type = await classify_document_with_model(
+                    db,
+                    document,
+                    text,
+                    LMStudioProvider(settings, settings.lmstudio_simple_model),
+                )
+            except LLMUnavailable:
+                pass
         if document.document_type.value == "UNKNOWN":
             document.state = DocumentState.REVIEW_REQUIRED
             db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "insufficient_deterministic_signals"}))
@@ -66,13 +78,28 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             document.state = DocumentState.STRUCTURING
             db.commit()
             try:
-                await structure_document(db, document, text, LMStudioProvider(get_settings()))
+                try:
+                    await structure_document(db, document, text, LMStudioProvider(settings))
+                except LLMUnavailable:
+                    if not settings.lmstudio_fallback_model or settings.lmstudio_fallback_model == settings.lmstudio_main_model:
+                        raise
+                    await structure_document(db, document, text, LMStudioProvider(settings, settings.lmstudio_fallback_model))
                 cluster_document(
                     db,
                     document,
-                    get_settings().auto_confirm_threshold,
-                    get_settings().suggest_threshold,
+                    settings.auto_confirm_threshold,
+                    settings.suggest_threshold,
                 )
+                if settings.lmstudio_relation_model:
+                    try:
+                        await cluster_document_with_relation_model(
+                            db,
+                            document,
+                            LMStudioProvider(settings, settings.lmstudio_relation_model),
+                            settings.suggest_threshold,
+                        )
+                    except LLMUnavailable:
+                        pass
                 document.state = DocumentState.COMPLETE
             except LLMUnavailable:
                 document.state = DocumentState.REVIEW_REQUIRED
