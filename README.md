@@ -147,6 +147,12 @@ A reimbursement estimate is displayed only when the invoice
 contains a structured total; otherwise the UI says that the estimate is not
 available rather than presenting a misleading €0 amount.
 
+The insurance workspace always separates the **documented invoice expense**
+from the **estimated reimbursement**. Until the provider network is verified,
+the estimate uses the reviewed out-of-network policy terms and explains that
+assumption; a zero reimbursement can therefore be traced to the applicable
+deductible or coinsurance rather than confused with a missing invoice amount.
+
 Invoice-to-prescription links require a strict 0–30 day window: an invoice dated
 before its prescription or more than 30 days after it is excluded from matching,
 cannot be manually confirmed, and any legacy proposal is automatically archived

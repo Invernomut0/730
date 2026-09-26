@@ -123,7 +123,9 @@ class InsuranceResponse(BaseModel):
     category: str
     status: str
     documentation_complete: bool
+    documented_amount: str
     estimated_eligible_amount: str
+    estimate_basis: str
     rules: list[str]
     evidence: list[str]
     missing_documents: list[str]

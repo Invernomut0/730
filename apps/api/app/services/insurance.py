@@ -20,7 +20,9 @@ class InsuranceEvaluation:
     category: str
     status: str
     documentation_complete: bool
+    documented_amount: Decimal
     estimated_eligible_amount: Decimal
+    estimate_basis: str
     rules: list[str]
     evidence: list[str]
     missing_documents: list[str]
@@ -82,7 +84,11 @@ def evaluate_event(db: Session, event_id: UUID, category_name: str = "specialist
     warnings = ["Candidate only: policy verification remains required."]
     if expenses and not amounts:
         warnings.append("Invoice total is unavailable: no reimbursement estimate was calculated.")
-    return InsuranceEvaluation(category=category_name, status="candidate" if complete else "review_required", documentation_complete=complete, estimated_eligible_amount=coverage_amount(amount, category) if complete and amounts else Decimal(0), rules=[f"{ruleset['version']}: {category_name}", "human_review_required"], evidence=sorted(item for item in evidence if item), missing_documents=missing, warnings=warnings)
+    if amounts:
+        estimate_basis = "Condizioni fuori rete applicate in via prudenziale: la convenzione della struttura non è stata verificata."
+    else:
+        estimate_basis = "Stima non calcolabile: il totale della fattura non è disponibile nei dati estratti."
+    return InsuranceEvaluation(category=category_name, status="candidate" if complete else "review_required", documentation_complete=complete, documented_amount=amount, estimated_eligible_amount=coverage_amount(amount, category) if complete and amounts else Decimal(0), estimate_basis=estimate_basis, rules=[f"{ruleset['version']}: {category_name}", "human_review_required"], evidence=sorted(item for item in evidence if item), missing_documents=missing, warnings=warnings)
 
 
 def evaluate_specialist_and_diagnostics(db: Session, event_id: UUID) -> InsuranceEvaluation:

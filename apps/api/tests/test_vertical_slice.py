@@ -89,6 +89,11 @@ async def test_prescription_invoice_vertical_slice_creates_event() -> None:
         assert graph.status_code == 200
         assert {node["label"] for node in graph.json()["nodes"]} >= {"2026-03-01_prescrizione_ortopedica.pdf", "2026-03-05_fattura_ortopedica.pdf"}
         assert any(node["label"] == "visita ortopedica" for node in graph.json()["nodes"])
+        with TestClient(app) as client:
+            evaluation = client.get(f"/api/v1/medical-events/{event.id}/insurance-evaluation")
+        assert evaluation.status_code == 200
+        assert evaluation.json()["documented_amount"] == "180.00"
+        assert evaluation.json()["estimated_eligible_amount"] == "144.00"
         assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id)).patient_id == member.id
         assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id)).patient_id == member.id
     finally:
