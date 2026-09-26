@@ -146,6 +146,9 @@ meaningful service term. Generic wording such as "visita" is never sufficient;
 the local worker processes at most two structured documents concurrently to avoid
 exhausting the configured local model.
 
+`LMSTUDIO_REQUEST_TIMEOUT_SECONDS` defaults to `1800` (30 minutes), allowing
+large local models to complete long structured extractions without premature retry.
+
 LM Studio reasoning models that leave the OpenAI JSON-schema `content` field
 empty are requested in text mode instead; the API then parses JSON only and
 validates it against the same Pydantic extraction schema before persistence. The

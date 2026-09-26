@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     lmstudio_relation_model: str = "qwen3.8-27b-abliterated-mtplx-optimized-speed"
     lmstudio_vision_model: str = ""
     lmstudio_embedding_model: str = ""
-    lmstudio_request_timeout_seconds: int = Field(default=180, gt=0)
+    lmstudio_request_timeout_seconds: int = Field(default=1800, gt=0)
     rizzo_flow_enabled: bool = False
     rizzo_flow_base_url: HttpUrl | None = None
 

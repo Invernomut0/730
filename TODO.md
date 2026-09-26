@@ -126,6 +126,7 @@
 - [x] Extracted clinical-data side panel in document viewer
 - [x] Specialty-safe clinical relation matching and serialized local processing
 - [x] Two-request local model concurrency limit
+- [x] Thirty-minute local model request timeout
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline
