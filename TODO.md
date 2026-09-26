@@ -124,6 +124,8 @@
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system
 - [x] Extracted clinical-data side panel in document viewer
+- [x] Specialty-safe clinical relation matching and serialized local processing
+- [x] Two-request local model concurrency limit
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

@@ -167,3 +167,4 @@ class WorkerSettings:
     functions: ClassVar[list[object]] = [process_document, scan_watch_directory, sync_aifa_catalog]
     cron_jobs: ClassVar[list[object]] = [cron(scan_watch_directory, second={0}), cron(sync_aifa_catalog, weekday=0, hour=3)]
     redis_settings: ClassVar[RedisSettings] = RedisSettings.from_dsn(get_settings().redis_url)
+    max_jobs: ClassVar[int] = 2

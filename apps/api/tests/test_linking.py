@@ -20,6 +20,22 @@ def test_matching_prescription_and_invoice_auto_confirm() -> None:
     assert "service_matches_prescription" in candidate.evidence
 
 
+def test_incompatible_specialties_never_link_on_generic_visit_word() -> None:
+    patient = uuid4()
+    candidate = score_prescription_invoice(
+        patient,
+        patient,
+        date(2026, 1, 15),
+        date(2026, 1, 20),
+        ["visita gastroenterologica (controllo)"],
+        ["visita multidisciplinare"],
+    )
+
+    assert candidate.score == 0
+    assert candidate.conflicts == ["incompatible_clinical_specialty"]
+    assert "service_matches_prescription" not in candidate.evidence
+
+
 def test_explicit_patient_mismatch_never_auto_links() -> None:
     candidate = score_prescription_invoice(
         uuid4(),

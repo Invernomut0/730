@@ -141,6 +141,11 @@ both save these settings through the API's CORS-protected `PUT` endpoint.
 When opening a document, the right-hand summary panel presents the extracted
 patient name, date, diagnostic question, document type, clinician, and requested service.
 
+Document relationships require a matching clinical specialty or a shared
+meaningful service term. Generic wording such as "visita" is never sufficient;
+the local worker processes at most two structured documents concurrently to avoid
+exhausting the configured local model.
+
 LM Studio reasoning models that leave the OpenAI JSON-schema `content` field
 empty are requested in text mode instead; the API then parses JSON only and
 validates it against the same Pydantic extraction schema before persistence. The
