@@ -134,6 +134,7 @@
 - [x] Deterministic laboratory-test and medicine item normalization
 - [x] Structured laboratory-result report recognition
 - [x] Explicit prescribed-medicine viewer summary
+- [x] Documented specialist-visit service extraction
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

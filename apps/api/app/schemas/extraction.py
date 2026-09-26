@@ -184,6 +184,7 @@ class MedicalReportExtraction(BaseModel):
     provider: EvidenceValue | None = None
     report_kind: str | None = Field(default=None, pattern="^(LABORATORY_RESULTS|CLINICAL_REPORT)$")
     laboratory_results: list[LaboratoryResultExtraction] = Field(default_factory=list)
+    documented_services: list[EvidenceValue] = Field(default_factory=list)
     diagnosis_evidence: list[DiagnosisEvidenceExtraction] = Field(default_factory=list)
     requested_visits: list[ClinicalActivityExtraction] = Field(default_factory=list)
     operations: list[ClinicalActivityExtraction] = Field(default_factory=list)

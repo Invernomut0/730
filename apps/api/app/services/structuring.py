@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from pathlib import Path
 from pydantic import BaseModel, ValidationError
@@ -10,8 +11,24 @@ from sqlalchemy.orm import Session
 
 from app.adapters.lmstudio import LLMProvider, LLMUnavailable
 from app.models.entities import AIExecution, ClinicalDocument, Document, DocumentType, ExpenseDocument, MedicalReport, Prescription, ReviewTask, ReviewType
-from app.schemas.extraction import GenericClinicalExtraction, InvoiceExtraction, MedicalReportExtraction, PrescriptionExtraction
+from app.schemas.extraction import EvidenceValue, GenericClinicalExtraction, InvoiceExtraction, MedicalReportExtraction, PrescriptionExtraction
 from app.services.identity import resolve_patient
+
+
+_DOCUMENTED_VISIT_TITLE = re.compile(
+    r"(?im)^\s*((?:VISITA|CONSULENZA|CONTROLLO)[^\n]{0,120}(?:GASTROENTEROLOGIA|CARDIOLOGIA|DERMATOLOGIA|ENDOCRINOLOGIA|NEUROLOGIA|ONCOLOGIA|ORTOPEDIA|UROLOGIA)[^\n]{0,80})\s*$"
+)
+
+
+def supplement_documented_services(report: MedicalReportExtraction, text: str) -> MedicalReportExtraction:
+    """Retain explicitly printed specialist-visit headings missed by the local model."""
+    known = {service.value.casefold() for service in report.documented_services}
+    for match in _DOCUMENTED_VISIT_TITLE.finditer(text):
+        title = " ".join(match.group(1).split())
+        if title.casefold() not in known:
+            report.documented_services.append(EvidenceValue(value=title, source_text=title, confidence=1.0))
+            known.add(title.casefold())
+    return report
 
 
 async def structure_document(db: Session, document: Document, text: str, provider: LLMProvider) -> None:
@@ -26,7 +43,7 @@ async def structure_document(db: Session, document: Document, text: str, provide
     prompt_by_type = {
         DocumentType.PRESCRIPTION: ("prescription-extractor", "v3"),
         DocumentType.INVOICE: ("invoice-extractor", "v2"),
-        DocumentType.MEDICAL_REPORT: ("medical-report-extractor", "v2"),
+        DocumentType.MEDICAL_REPORT: ("medical-report-extractor", "v3"),
         DocumentType.PHARMACY_RECEIPT: ("generic-clinical-extractor", "v1"),
         DocumentType.OTHER: ("generic-clinical-extractor", "v1"),
     }
@@ -50,6 +67,8 @@ async def structure_document(db: Session, document: Document, text: str, provide
     try:
         raw = await provider.structured_completion(prompt, schema.model_json_schema())
         extracted = schema.model_validate(raw)
+        if isinstance(extracted, MedicalReportExtraction):
+            extracted = supplement_documented_services(extracted, text)
     except (LLMUnavailable, ValidationError) as error:
         execution.status = "FAILED"
         execution.duration_ms = int((time.monotonic() - started) * 1000)

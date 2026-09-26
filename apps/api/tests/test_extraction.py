@@ -6,6 +6,7 @@ from app.core.config import Settings
 from app.models.entities import DocumentType
 from app.services.extraction import ExtractedPage, classify_document, extract_pdf_text, text_is_insufficient
 from app.schemas.extraction import InvoiceExtraction, MedicalReportExtraction, PrescriptionExtraction
+from app.services.structuring import supplement_documented_services
 
 
 def test_native_text_quality_requires_ocr_when_empty() -> None:
@@ -115,6 +116,30 @@ def test_medical_report_extraction_preserves_patient_date_and_activities() -> No
     assert report.operations[0].kind == "SURGERY"
     assert report.follow_up_activities[0].scheduled_date is not None
     assert report.follow_up_activities[0].scheduled_date.isoformat() == "2024-06-25"
+
+
+def test_medical_report_preserves_printed_documented_specialist_visit() -> None:
+    report = MedicalReportExtraction.model_validate({
+        "report_kind": "CLINICAL_REPORT",
+        "documented_services": [
+            {
+                "value": "VISITA DI CONTROLLO - GASTROENTEROLOGIA",
+                "source_text": "VISITA DI CONTROLLO - GASTROENTEROLOGIA",
+                "confidence": 0.99,
+            }
+        ],
+    })
+
+    assert report.documented_services[0].value == "VISITA DI CONTROLLO - GASTROENTEROLOGIA"
+
+
+def test_medical_report_supplements_printed_specialist_visit_title() -> None:
+    report = supplement_documented_services(
+        MedicalReportExtraction(),
+        "DIPARTIMENTO DI GASTROENTEROLOGIA\nVISITA DI CONTROLLO - GASTROENTEROLOGIA\n",
+    )
+
+    assert [service.value for service in report.documented_services] == ["VISITA DI CONTROLLO - GASTROENTEROLOGIA"]
 
 
 def test_laboratory_report_preserves_each_printed_result_without_interpretation() -> None:
