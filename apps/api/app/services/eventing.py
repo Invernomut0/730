@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.adapters.lmstudio import LLMProvider
-from app.models.entities import Document, DocumentLink, ExpenseDocument, MedicalEvent, Prescription, ReviewTask, ReviewType
-from app.services.linking import score_prescription_invoice
+from app.models.entities import Document, DocumentLink, EventStatus, ExpenseDocument, MedicalEvent, Prescription, ReviewTask, ReviewType
+from app.services.linking import is_patient_date_review_candidate, score_prescription_invoice
 
 
 def _services(extraction: dict[str, object], key: str) -> list[str]:
@@ -96,6 +96,26 @@ def cluster_document(db: Session, document: Document, auto_confirm_threshold: fl
             db.add(DocumentLink(source_document_id=source.document_id, target_document_id=target.document_id, medical_event_id=event.id, relation_type="RELATED_TO", score=candidate.score, evidence=candidate.evidence, conflicts=candidate.conflicts))
         elif candidate.score >= suggest_threshold:
             db.add(ReviewTask(type=ReviewType.LINK_AMBIGUOUS, entity_type="Document", entity_id=document.id, context={"candidate_document_id": str(target.document_id if prescription else source.document_id), "score": candidate.score, "evidence": candidate.evidence, "conflicts": candidate.conflicts}))
+        elif is_patient_date_review_candidate(candidate):
+            event = MedicalEvent(
+                household_member_id=source.patient_id,
+                title=medical_event_title(source, target),
+                start_date=source.prescription_date,
+                end_date=target.invoice_date,
+                status=EventStatus.PROPOSED,
+                confidence=candidate.score,
+            )
+            db.add(event)
+            db.flush()
+            db.add(DocumentLink(
+                source_document_id=source.document_id,
+                target_document_id=target.document_id,
+                medical_event_id=event.id,
+                relation_type="PATIENT_DATE_REVIEW",
+                score=candidate.score,
+                evidence=[*candidate.evidence, "patient_date_match_requires_review"],
+                conflicts=["invoice_service_not_matched"],
+            ))
 
 
 async def cluster_document_with_relation_model(

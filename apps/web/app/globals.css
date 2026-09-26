@@ -92,6 +92,13 @@ input:hover, select:hover { border-color: #a79888; }
 .extracted-summary dd { margin: 0; color: var(--navy-deep); font-size: 0.94rem; line-height: 1.35; overflow-wrap: anywhere; }
 .extracted-summary details { color: var(--muted); font-size: 0.82rem; }
 .extracted-summary summary { cursor: pointer; font-weight: 800; }
+.invoice-service-form { display: grid; gap: 0.65rem; padding: 0.85rem; border: 1px solid #d7a758; background: #fff7e8; }
+.invoice-service-form h4 { margin: 0; color: var(--navy-deep); }
+.invoice-service-form p { margin: 0.25rem 0 0; font-size: 0.82rem; }
+.invoice-service-form label { display: grid; gap: 0.25rem; color: var(--navy); font-size: 0.76rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.invoice-service-form input { min-width: 0; padding: 0.55rem 0.6rem; border: 1px solid var(--line); background: #fffdf8; color: var(--navy-deep); font: inherit; font-size: 0.9rem; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.invoice-service-form .text-button { justify-self: start; }
+.invoice-service-feedback { color: var(--navy); font-weight: 700; }
 
 .panel { margin-top: 2.5rem; padding: clamp(1.25rem, 3vw, 2rem); }
 .panel-title { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; margin-bottom: 1.2rem; }

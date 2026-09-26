@@ -15,6 +15,14 @@ class LinkCandidate:
     conflicts: list[str]
 
 
+def is_patient_date_review_candidate(candidate: LinkCandidate) -> bool:
+    """Keep a patient/date pair visible when clinical service evidence cannot confirm it."""
+    return not candidate.conflicts and "same_patient" in candidate.evidence and any(
+        evidence.startswith("invoice_") and evidence.endswith("_days_after_prescription")
+        for evidence in candidate.evidence
+    )
+
+
 _GENERIC_SERVICE_WORDS = {
     "ambulatoriale", "controllo", "della", "delle", "degli", "diagnostica", "esame", "prestazione",
     "privata", "richiesta", "sanitaria", "servizio", "specialistica", "visita",

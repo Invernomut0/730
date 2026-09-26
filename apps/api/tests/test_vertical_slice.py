@@ -160,6 +160,14 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert rebuilt_link.medical_event_id != event.id
         assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document_id)) is not None
         assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id)) is not None
+        with TestClient(app) as client:
+            service_added = client.post(
+                f"/api/v1/documents/{invoice_document_id}/invoice-services",
+                json={"service_description": "Controllo ortopedico", "amount": "25.00"},
+            )
+        assert service_added.status_code == 200
+        updated_services = service_added.json()["extraction"]["services"]
+        assert any(item["description"]["value"] == "Controllo ortopedico" for item in updated_services)
         database.refresh(prescription_document)
         database.refresh(invoice_document)
         assert prescription_document.state == DocumentState.COMPLETE

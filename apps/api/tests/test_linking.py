@@ -1,7 +1,7 @@
 from datetime import date
 from uuid import uuid4
 
-from app.services.linking import score_prescription_invoice
+from app.services.linking import is_patient_date_review_candidate, score_prescription_invoice
 
 
 def test_matching_prescription_and_invoice_auto_confirm() -> None:
@@ -118,3 +118,19 @@ def test_invoice_outside_thirty_day_window_is_never_a_link_candidate() -> None:
     assert candidate.score == 0
     assert candidate.evidence == ["same_patient"]
     assert candidate.conflicts == ["invoice_outside_link_window"]
+
+
+def test_same_patient_and_date_window_without_service_match_creates_review_candidate() -> None:
+    patient = uuid4()
+
+    candidate = score_prescription_invoice(
+        patient,
+        patient,
+        date(2026, 5, 6),
+        date(2026, 5, 9),
+        ["visita gastroenterologica"],
+        ["iniezione terapeutica"],
+    )
+
+    assert 0.44 < candidate.score < 0.46
+    assert is_patient_date_review_candidate(candidate)

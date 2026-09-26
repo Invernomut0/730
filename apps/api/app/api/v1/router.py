@@ -57,6 +57,7 @@ from app.schemas.api import (
     LoginRequest,
     AssociationDecision,
     AssociationRebuildResponse,
+    InvoiceServiceCreate,
     ManualDocumentCompletion,
     MedicalEventResponse,
     MemberCreate,
@@ -366,6 +367,52 @@ async def reanalyze_document(document_id: UUID, db: Session = Depends(get_db), s
         db.commit()
         raise HTTPException(status_code=503, detail="The processing queue is unavailable. The document was not started.") from error
     return DocumentAnalysisResponse(documents_queued=1)
+
+
+@router.post("/documents/{document_id}/invoice-services", response_model=DocumentResponse)
+def add_invoice_service(
+    document_id: UUID,
+    payload: InvoiceServiceCreate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> DocumentResponse:
+    """Append operator-verified invoice service evidence without reprocessing the document."""
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == document.id))
+    if document.document_type != DocumentType.INVOICE or expense is None:
+        raise HTTPException(status_code=422, detail="Only structured invoices can receive manual services.")
+
+    extraction = dict(expense.extraction)
+    services = list(extraction.get("services", []))
+    services.append({
+        "description": {
+            "value": payload.service_description.strip(),
+            "source_text": "manual operator entry",
+            "confidence": 1.0,
+        },
+        "amount": str(payload.amount) if payload.amount is not None else None,
+    })
+    extraction["services"] = services
+    expense.extraction = extraction
+
+    event_ids = list(db.scalars(select(DocumentLink.medical_event_id).where(
+        (DocumentLink.source_document_id == document.id) | (DocumentLink.target_document_id == document.id),
+        DocumentLink.medical_event_id.is_not(None),
+    )))
+    db.execute(delete(DocumentLink).where(
+        (DocumentLink.source_document_id == document.id) | (DocumentLink.target_document_id == document.id)
+    ))
+    db.flush()
+    if event_ids:
+        linked_event_ids = select(DocumentLink.medical_event_id).where(DocumentLink.medical_event_id.is_not(None))
+        db.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(event_ids), ~MedicalEvent.id.in_(linked_event_ids)))
+    cluster_document(db, document, settings.auto_confirm_threshold, settings.suggest_threshold)
+    record_audit(db, "invoice.service_added_manually", "Document", document.id, {"service": payload.service_description.strip()})
+    db.commit()
+    db.refresh(document)
+    return document_response(document, db)
 
 
 @router.delete("/documents/{document_id}", response_model=DeletionResponse)

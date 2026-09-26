@@ -153,6 +153,11 @@ class ManualDocumentCompletion(BaseModel):
     provider_name: str | None = Field(default=None, max_length=255)
 
 
+class InvoiceServiceCreate(BaseModel):
+    service_description: str = Field(min_length=2, max_length=500)
+    amount: Decimal | None = Field(default=None, ge=0)
+
+
 class AssociationDecision(BaseModel):
     action: Literal["approve", "reject"]
     reason: str | None = Field(default=None, max_length=1000)

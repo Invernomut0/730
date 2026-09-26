@@ -75,12 +75,17 @@ function extractedSummary(document: Document): Array<[string, string]> {
   ];
 }
 
-export function DocumentViewerLayer({ document, pages, onClose }: { document: Document | undefined; pages: DocumentPage[]; onClose: () => void }): ReactElement | null {
+export function DocumentViewerLayer({ document, pages, onClose, onDocumentUpdated }: { document: Document | undefined; pages: DocumentPage[]; onClose: () => void; onDocumentUpdated: (document: Document) => void }): ReactElement | null {
   const [position, setPosition] = useState({ x: 28, y: 82 });
   const [selectedWord, setSelectedWord] = useState<WordBox>();
+  const [serviceDescription, setServiceDescription] = useState("");
+  const [serviceAmount, setServiceAmount] = useState("");
+  const [serviceMessage, setServiceMessage] = useState("");
+  const [savingService, setSavingService] = useState(false);
   const dragOffset = useRef<{ x: number; y: number } | undefined>(undefined);
 
   if (!document) return null;
+  const documentId = document.id;
 
   function beginDrag(event: PointerEvent<HTMLDivElement>): void {
     if ((event.target as HTMLElement).closest("button")) return;
@@ -95,6 +100,33 @@ export function DocumentViewerLayer({ document, pages, onClose }: { document: Do
 
   function endDrag(): void { dragOffset.current = undefined; }
 
+  async function addInvoiceService(): Promise<void> {
+    if (!serviceDescription.trim()) return;
+    setSavingService(true);
+    setServiceMessage("");
+    const amount = serviceAmount.trim() ? Number(serviceAmount.replace(",", ".")) : undefined;
+    if (amount !== undefined && (!Number.isFinite(amount) || amount < 0)) {
+      setSavingService(false);
+      setServiceMessage("Inserisci un importo valido oppure lascialo vuoto.");
+      return;
+    }
+    const response = await fetch(`${API}/api/v1/documents/${documentId}/invoice-services`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ service_description: serviceDescription.trim(), amount }),
+    });
+    setSavingService(false);
+    if (!response.ok) {
+      const body = await response.json() as { detail?: string };
+      setServiceMessage(body.detail ?? "Impossibile salvare la prestazione.");
+      return;
+    }
+    onDocumentUpdated(await response.json() as Document);
+    setServiceDescription("");
+    setServiceAmount("");
+    setServiceMessage("Prestazione aggiunta e collegamenti della fattura ricalcolati.");
+  }
+
   return <aside aria-label="Dettaglio documento" className="document-viewer-layer" role="dialog" style={{ left: position.x, top: position.y }}>
     <div className="document-viewer-drag-handle" onPointerDown={beginDrag} onPointerMove={drag} onPointerUp={endDrag} onPointerCancel={endDrag}>
       <div><p className="eyebrow">DOCUMENTO ORIGINALE</p><h3>{document.logical_name ?? document.original_filename}</h3></div>
@@ -102,7 +134,7 @@ export function DocumentViewerLayer({ document, pages, onClose }: { document: Do
     </div>
     <div className="document-viewer-layer-content">
       <div><div className="viewer-preview-wrap"><img className="viewer-preview" alt={`Anteprima di ${document.logical_name ?? document.original_filename}`} src={`${API}/api/v1/documents/${document.id}/thumbnail`} />{(pages[0]?.blocks?.words ?? []).map((word, index) => <button aria-label={`Mostra dettaglio parola ${word.text}`} className={`word-box${selectedWord === word ? " selected" : ""}`} key={`${word.text}-${index}`} onClick={() => setSelectedWord(word)} style={{ left: `${word.left * 100}%`, top: `${word.top * 100}%`, width: `${word.width * 100}%`, height: `${word.height * 100}%` }} title={word.text} type="button" />)}</div></div>
-      <div className="viewer-copy extracted-summary"><header><p className="eyebrow">SINTESI ESTRATTA</p><h3>Dati principali</h3></header><dl>{extractedSummary(document).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{selectedWord && <div className="word-detail"><strong>{selectedWord.text}</strong><span>Pagina 1 · x {Math.round(selectedWord.left * 100)}% · y {Math.round(selectedWord.top * 100)}%</span></div>}<details><summary>Dettaglio tecnico estrazione</summary><pre>{document.extraction ? JSON.stringify(document.extraction, null, 2) : pages.map(page => page.text).join("\n\n") || "Testo in attesa di estrazione."}</pre></details></div>
+      <div className="viewer-copy extracted-summary"><header><p className="eyebrow">SINTESI ESTRATTA</p><h3>Dati principali</h3></header><dl>{extractedSummary(document).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{document.document_type === "INVOICE" && <form className="invoice-service-form" onSubmit={event => { event.preventDefault(); void addInvoiceService(); }}><div><p className="eyebrow">CORREZIONE OPERATORE</p><h4>Aggiungi prestazione fattura</h4><p>Usala solo se la prestazione non è stata rilevata o è incompleta.</p></div><label>Prestazione<input aria-label="Prestazione fattura" disabled={savingService} onChange={event => setServiceDescription(event.target.value)} placeholder="Es. visita gastroenterologica" value={serviceDescription} /></label><label>Importo opzionale<input aria-label="Importo prestazione" disabled={savingService} inputMode="decimal" onChange={event => setServiceAmount(event.target.value)} placeholder="0,00" value={serviceAmount} /></label><button className="text-button" disabled={savingService || !serviceDescription.trim()} type="submit">{savingService ? "Salvataggio…" : "Aggiungi prestazione"}</button>{serviceMessage && <p aria-live="polite" className="invoice-service-feedback">{serviceMessage}</p>}</form>}{selectedWord && <div className="word-detail"><strong>{selectedWord.text}</strong><span>Pagina 1 · x {Math.round(selectedWord.left * 100)}% · y {Math.round(selectedWord.top * 100)}%</span></div>}<details><summary>Dettaglio tecnico estrazione</summary><pre>{document.extraction ? JSON.stringify(document.extraction, null, 2) : pages.map(page => page.text).join("\n\n") || "Testo in attesa di estrazione."}</pre></details></div>
     </div>
   </aside>;
 }

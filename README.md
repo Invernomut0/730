@@ -13,6 +13,13 @@ queues OCR or document extraction. The result reports created links and review
 proposals; when neither can be created, it explicitly confirms that no safe
 match had sufficient patient/date/service evidence. A database uniqueness
 constraint on each prescription/invoice document pair prevents duplicate links.
+When patient and invoice date are within the strict 0–30 day chronology but the
+invoice service is absent or insufficient to prove a clinical-service match, the
+rebuild creates a visible `PROPOSED` event marked `PATIENT_DATE_REVIEW`. It never
+auto-confirms this weaker association; the operator must approve or reject it
+from the workspace. The invoice viewer also provides **Aggiungi prestazione
+fattura** to append operator-verified service evidence and immediately recalculate
+only that invoice's links, without deleting or rerunning its extraction.
 
 When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
 **Avvia analisi documenti** above the Inbox. It queues each non-duplicate

@@ -144,6 +144,8 @@
 - [x] Non-destructive relationship rebuild
 - [x] ARQ timeout aligned with the local LLM pipeline and cancellation recovery
 - [x] Relationship rebuild from persisted structured records with explicit outcome
+- [x] Same-day patient relation proposals for incomplete invoice service evidence
+- [x] Manual invoice-service correction with targeted relation recalculation
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline
