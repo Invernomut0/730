@@ -119,6 +119,15 @@ class ReviewResolution(BaseModel):
     resolution: dict[str, object]
 
 
+class ManualDocumentCompletion(BaseModel):
+    document_type: Literal["PRESCRIPTION", "INVOICE", "MEDICAL_REPORT"]
+    document_date: date
+    patient_name: str = Field(min_length=2, max_length=200)
+    service_description: str = Field(min_length=2, max_length=500)
+    total_amount: Decimal | None = Field(default=None, ge=0)
+    provider_name: str | None = Field(default=None, max_length=255)
+
+
 class InsuranceResponse(BaseModel):
     category: str
     status: str

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID
 
 from arq import create_pool
@@ -48,6 +49,7 @@ from app.schemas.api import (
     HouseholdResponse,
     InsuranceResponse,
     LoginRequest,
+    ManualDocumentCompletion,
     MedicalEventResponse,
     MemberCreate,
     ReviewResolution,
@@ -61,7 +63,7 @@ from app.schemas.api import (
     PaymentEvidenceCreate,
 )
 from app.services.insurance import evaluate_specialist_and_diagnostics, export_package
-from app.services.identity import normalize_fiscal_code
+from app.services.identity import normalize_fiscal_code, resolve_patient
 from app.services.audit import record_audit
 from app.core.security import verify_password
 from app.services.auth_rate_limit import LoginRateLimitUnavailable, clear_login_attempts, consume_login_attempt
@@ -73,7 +75,7 @@ from app.services.precompiled_730 import import_csv, reconcile
 from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aifa_csv, match_receipt_lines
 from app.services.database_reset import reset_application_database
 from app.services.deletion import delete_document_group, delete_household
-from app.services.eventing import medical_event_title, refresh_legacy_event_title
+from app.services.eventing import cluster_document, medical_event_title, refresh_legacy_event_title
 
 router = APIRouter(prefix="/api/v1")
 
@@ -612,4 +614,50 @@ async def retry_document_review_task(task_id: UUID, db: Session = Depends(get_db
         raise HTTPException(status_code=503, detail="The processing queue is unavailable.") from error
     finally:
         await redis.aclose()
+    return ReviewResponse(id=task.id, type=task.type.value, entity_type=task.entity_type, entity_id=task.entity_id, status=task.status, priority=task.priority, context=task.context)
+
+
+@router.post("/review-tasks/{task_id}/complete-manually", response_model=ReviewResponse)
+def complete_document_review_manually(task_id: UUID, payload: ManualDocumentCompletion, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> ReviewResponse:
+    """Persist operator-supplied structured data for a document that local extraction could not classify."""
+    task = db.get(ReviewTask, task_id)
+    if task is None or task.status != "OPEN":
+        raise HTTPException(status_code=404, detail="Open review task not found.")
+    if task.type != ReviewType.DOCUMENT_TYPE_UNCERTAIN or task.entity_type != "Document":
+        raise HTTPException(status_code=422, detail="Only document-classification reviews can be completed manually.")
+    if payload.document_type == "INVOICE" and payload.total_amount is None:
+        raise HTTPException(status_code=422, detail="A total amount is required for a manually completed invoice.")
+    document = db.get(Document, task.entity_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="The reviewed document is no longer available.")
+
+    patient = resolve_patient(db, None, payload.patient_name)
+    evidence = {"value": payload.patient_name, "source_text": "manual operator entry", "confidence": 1.0}
+    service = {"value": payload.service_description, "source_text": "manual operator entry", "confidence": 1.0}
+    document.document_type = DocumentType(payload.document_type)
+    document.document_date = payload.document_date
+    document.patient_id = patient.member_id
+    document.state = DocumentState.COMPLETE
+    extension = Path(document.original_filename).suffix.lower() or ".bin"
+    document.logical_name = f"{payload.document_date.isoformat()}_{payload.document_type.lower()}_{document.sha256[:8]}{extension}"
+
+    if document.document_type == DocumentType.PRESCRIPTION:
+        extraction = {"document_date": payload.document_date.isoformat(), "patient": evidence, "requested_services": [service], "diagnosis_evidence": []}
+        db.add(Prescription(document_id=document.id, patient_id=patient.member_id, prescription_date=payload.document_date, provider=payload.provider_name, extraction=extraction))
+    elif document.document_type == DocumentType.INVOICE:
+        extraction = {"invoice_date": payload.document_date.isoformat(), "patient_name": evidence, "provider_name": {"value": payload.provider_name, "source_text": "manual operator entry", "confidence": 1.0} if payload.provider_name else None, "services": [{"description": service, "amount": str(payload.total_amount)}], "total_amount": str(payload.total_amount)}
+        db.add(ExpenseDocument(document_id=document.id, patient_id=patient.member_id, invoice_date=payload.document_date, provider_name=payload.provider_name, total_amount=payload.total_amount, extraction=extraction))
+    else:
+        extraction = {"report_date": payload.document_date.isoformat(), "patient": evidence, "requested_visits": [{"kind": "OTHER", "evidence": service, "scheduled_date": payload.document_date.isoformat()}]}
+        db.add(MedicalReport(document_id=document.id, patient_id=patient.member_id, report_date=payload.document_date, provider=payload.provider_name, extraction=extraction))
+
+    db.flush()
+    if patient.conflict:
+        db.add(ReviewTask(type=ReviewType.PATIENT_CONFLICT, entity_type="Document", entity_id=document.id, context={"resolution_evidence": patient.evidence, "source": "manual_completion"}))
+    cluster_document(db, document, settings.auto_confirm_threshold, settings.suggest_threshold)
+    task.status = "RESOLVED"
+    task.resolution = {"action": "completed_manually", "document_type": payload.document_type}
+    task.resolved_at = datetime.now(UTC)
+    record_audit(db, "review.completed_manually", "ReviewTask", task.id, {"document_type": payload.document_type})
+    db.commit()
     return ReviewResponse(id=task.id, type=task.type.value, entity_type=task.entity_type, entity_id=task.entity_id, status=task.status, priority=task.priority, context=task.context)

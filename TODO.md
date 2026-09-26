@@ -111,6 +111,7 @@
 - [x] Explain matching data and downstream destinations in link reviews
 - [x] Open logical-name graph nodes in the document viewer
 - [x] Explain documented expense and reimbursement estimate separately
+- [x] Manual completion for unclassified document reviews
 - [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system

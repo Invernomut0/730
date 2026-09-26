@@ -153,6 +153,13 @@ the estimate uses the reviewed out-of-network policy terms and explains that
 assumption; a zero reimbursement can therefore be traced to the applicable
 deductible or coinsurance rather than confused with a missing invoice amount.
 
+When local extraction cannot classify a document, the review queue provides
+**Apri originale e completa manualmente**. It opens the immutable original and
+its available data, then records the operator-supplied document type, date,
+patient, service, provider and (for invoices) total as a structured manual
+entry. The original remains unchanged, the review is auditable, and ordinary
+linking resumes only after those fields are saved.
+
 Invoice-to-prescription links require a strict 0–30 day window: an invoice dated
 before its prescription or more than 30 days after it is excluded from matching,
 cannot be manually confirmed, and any legacy proposal is automatically archived

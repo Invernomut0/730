@@ -7,7 +7,7 @@ from sqlalchemy import delete, select
 from app.db.session import SessionLocal
 from app.core.config import get_settings
 from app.main import app
-from app.models.entities import Document, DocumentLink, DocumentState, DocumentType, ExpenseDocument, MedicalEvent, Prescription, ReviewTask, ReviewType
+from app.models.entities import Document, DocumentLink, DocumentState, DocumentType, ExpenseDocument, MedicalEvent, MedicalReport, Prescription, ReviewTask, ReviewType
 
 
 def test_confirming_ambiguous_link_creates_manual_event() -> None:
@@ -221,4 +221,50 @@ def test_retrying_classification_review_queues_local_processing() -> None:
         database.commit()
         if storage_path:
             storage_path.unlink(missing_ok=True)
+        database.close()
+
+
+def test_manually_completing_classification_review_persists_structured_report() -> None:
+    database = SessionLocal()
+    document_id = review_id = None
+    try:
+        document = Document(
+            original_filename="unclassified-report.pdf",
+            mime_type="application/pdf",
+            byte_size=1,
+            sha256=f"{uuid4().hex}{uuid4().hex}"[:64],
+            storage_key=f"originals/test/{uuid4()}.pdf",
+            state=DocumentState.REVIEW_REQUIRED,
+        )
+        database.add(document)
+        database.flush()
+        document_id = document.id
+        review = ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id)
+        database.add(review)
+        database.commit()
+        review_id = review.id
+
+        with TestClient(app) as client:
+            response = client.post(
+                f"/api/v1/review-tasks/{review_id}/complete-manually",
+                json={"document_type": "MEDICAL_REPORT", "document_date": "2026-09-26", "patient_name": "Lorenzo Vismara", "service_description": "Referto cardiologico", "provider_name": "Centro medico"},
+            )
+
+        assert response.status_code == 200
+        database.refresh(document)
+        database.refresh(review)
+        report = database.scalar(select(MedicalReport).where(MedicalReport.document_id == document_id))
+        assert document.document_type == DocumentType.MEDICAL_REPORT
+        assert document.state == DocumentState.COMPLETE
+        assert document.logical_name and document.logical_name.startswith("2026-09-26_medical_report_")
+        assert report is not None and report.extraction["requested_visits"][0]["evidence"]["value"] == "Referto cardiologico"
+        assert review.status == "RESOLVED"
+        assert review.resolution == {"action": "completed_manually", "document_type": "MEDICAL_REPORT"}
+    finally:
+        if review_id:
+            database.execute(delete(ReviewTask).where(ReviewTask.id == review_id))
+        if document_id:
+            database.execute(delete(MedicalReport).where(MedicalReport.document_id == document_id))
+            database.execute(delete(Document).where(Document.id == document_id))
+        database.commit()
         database.close()
