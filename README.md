@@ -1,11 +1,16 @@
 ## Association decisions
 
 Each proposed medical event can be approved or rejected from the workspace. A
-rejection requires an explanation, is recorded in the audit trail, and retains
-the document pair as an operator-rejected link so it is not suggested again.
-**Rifai le proposte da zero** discards only unreviewed proposed associations and
-recomputes them from structured documents; confirmed associations and motivated
-rejections remain untouched.
+rejection requires an explanation and is recorded in the audit trail. Approved
+associations leave the proposed-relations queue and appear in a separate,
+selectable approved-relations archive.
+
+**Rifai le relazioni da zero** removes every existing event, link and related
+review, clears prior structured analysis, and queues every non-duplicate source
+document for a new local LM Studio extraction. The new relation list is built
+only from that fresh LLM analysis. A database uniqueness constraint on each
+prescription/invoice document pair prevents duplicate links, including when
+multiple worker jobs overlap.
 # HealthDocs 730
 
 Local-first web application for managing multi-year household health documents, insurance claims and Italian 730 tax preparation.

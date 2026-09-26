@@ -133,6 +133,11 @@ class AssociationDecision(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
 
 
+class AssociationRebuildResponse(BaseModel):
+    documents_queued: int
+    events_removed: int
+
+
 class InsuranceResponse(BaseModel):
     category: str
     status: str

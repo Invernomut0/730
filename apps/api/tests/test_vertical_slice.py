@@ -13,6 +13,7 @@ from app.models.entities import (
     AIExecution,
     Document,
     DocumentLink,
+    DocumentState,
     DocumentType,
     ExpenseDocument,
     Household,
@@ -51,7 +52,7 @@ class SyntheticLLMProvider:
 
 
 @pytest.mark.asyncio
-async def test_prescription_invoice_vertical_slice_creates_event() -> None:
+async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: pytest.MonkeyPatch) -> None:
     database = SessionLocal()
     household_id = member_id = prescription_document_id = invoice_document_id = None
     try:
@@ -94,20 +95,40 @@ async def test_prescription_invoice_vertical_slice_creates_event() -> None:
         assert evaluation.status_code == 200
         assert evaluation.json()["documented_amount"] == "180.00"
         assert evaluation.json()["estimated_eligible_amount"] == "144.00"
+        queued_documents: list[str] = []
+
+        class LocalQueue:
+            async def enqueue_job(self, name: str, document_id: str) -> None:
+                assert name == "process_document"
+                queued_documents.append(document_id)
+
+            async def aclose(self) -> None:
+                return None
+
+        async def create_local_queue(*_args: object, **_kwargs: object) -> LocalQueue:
+            return LocalQueue()
+
+        monkeypatch.setattr("app.api.v1.router.create_pool", create_local_queue)
         with TestClient(app) as client:
-            rejected = client.post(f"/api/v1/medical-events/{event.id}/association", json={"action": "reject", "reason": "Servizi clinici non corrispondenti"})
-            events = client.get("/api/v1/medical-events")
+            approved = client.post(f"/api/v1/medical-events/{event.id}/association", json={"action": "approve"})
+            proposed = client.get("/api/v1/medical-events?status=PROPOSED")
+            confirmed = client.get("/api/v1/medical-events?status=CONFIRMED")
             rebuilt = client.post("/api/v1/medical-events/rebuild-associations")
-        assert rejected.status_code == 200
-        assert rejected.json()["status"] == "ARCHIVED"
-        assert str(event.id) not in {item["id"] for item in events.json()}
+        assert approved.status_code == 200
+        assert approved.json()["status"] == "CONFIRMED"
+        assert str(event.id) not in {item["id"] for item in proposed.json()}
+        assert str(event.id) in {item["id"] for item in confirmed.json()}
         assert rebuilt.status_code == 200
-        database.refresh(link)
-        assert link.relation_type == "REJECTED_BY_OPERATOR"
-        assert "operator_rejection_reason: Servizi clinici non corrispondenti" in link.evidence
-        assert database.scalar(select(DocumentLink).where(DocumentLink.source_document_id == prescription_document_id, DocumentLink.target_document_id == invoice_document_id, DocumentLink.relation_type != "REJECTED_BY_OPERATOR")) is None
-        assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id)).patient_id == member.id
-        assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id)).patient_id == member.id
+        assert rebuilt.json()["documents_queued"] == len(queued_documents)
+        assert {str(prescription_document_id), str(invoice_document_id)}.issubset(queued_documents)
+        assert database.scalar(select(MedicalEvent).where(MedicalEvent.id == event.id)) is None
+        assert database.scalar(select(DocumentLink).where(DocumentLink.source_document_id == prescription_document_id, DocumentLink.target_document_id == invoice_document_id)) is None
+        assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document_id)) is None
+        assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id)) is None
+        database.refresh(prescription_document)
+        database.refresh(invoice_document)
+        assert prescription_document.state == DocumentState.STORED
+        assert invoice_document.state == DocumentState.STORED
     finally:
         event_ids = select(MedicalEvent.id).where(MedicalEvent.household_member_id == member_id) if member_id else select(MedicalEvent.id).where(False)
         database.execute(delete(DocumentLink).where(DocumentLink.source_document_id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))

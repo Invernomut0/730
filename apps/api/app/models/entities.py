@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, JSON, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, JSON, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -292,6 +292,7 @@ class MedicalEvent(Timestamped, Base):
 
 class DocumentLink(Timestamped, Base):
     __tablename__ = "document_links"
+    __table_args__ = (UniqueConstraint("source_document_id", "target_document_id", name="uq_document_links_source_target"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     source_document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"), index=True)

@@ -17,13 +17,14 @@ const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export function EventWorkspace({ onOpenDocument }: { onOpenDocument: (documentId: string) => void }): ReactElement {
   const [events, setEvents] = useState<EventSummary[]>([]);
+  const [approvedEvents, setApprovedEvents] = useState<EventSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
   const [graph, setGraph] = useState<Graph>();
   const [evaluation, setEvaluation] = useState<Evaluation>();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
 
-  useEffect(() => { void fetch(`${API}/api/v1/medical-events`).then(async r => { if (r.ok) { const value = await r.json() as EventSummary[]; setEvents(value); setSelectedId(value[0]?.id); } }); void fetch(`${API}/api/v1/review-tasks`).then(async r => { if (r.ok) setReviews(await r.json() as Review[]); }); void fetch(`${API}/api/v1/documents`).then(async r => { if (r.ok) setDocuments(await r.json() as DocumentSummary[]); }); }, []);
+  useEffect(() => { void Promise.all([fetch(`${API}/api/v1/medical-events?status=PROPOSED`), fetch(`${API}/api/v1/medical-events?status=CONFIRMED`)]).then(async ([proposedResponse, approvedResponse]) => { if (proposedResponse.ok) { const value = await proposedResponse.json() as EventSummary[]; setEvents(value); setSelectedId(value[0]?.id); } if (approvedResponse.ok) setApprovedEvents(await approvedResponse.json() as EventSummary[]); }); void fetch(`${API}/api/v1/review-tasks`).then(async r => { if (r.ok) setReviews(await r.json() as Review[]); }); void fetch(`${API}/api/v1/documents`).then(async r => { if (r.ok) setDocuments(await r.json() as DocumentSummary[]); }); }, []);
   useEffect(() => { if (!selectedId) return; void Promise.all([fetch(`${API}/api/v1/medical-events/${selectedId}/graph`), fetch(`${API}/api/v1/medical-events/${selectedId}/insurance-evaluation`)]).then(async ([graphResponse, evaluationResponse]) => { if (graphResponse.ok) setGraph(await graphResponse.json() as Graph); if (evaluationResponse.ok) setEvaluation(await evaluationResponse.json() as Evaluation); }); }, [selectedId]);
 
   async function resolve(review: Review, action: string): Promise<void> {
@@ -50,9 +51,12 @@ export function EventWorkspace({ onOpenDocument }: { onOpenDocument: (documentId
   const nodes: Node[] = (graph?.nodes ?? []).map((node, index) => ({ id: node.id, position: { x: node.type === "medical_event" ? 280 : 40 + index * 260, y: node.type === "medical_event" ? 120 : 300 }, data: { label: `${node.label} · ${node.status}`, documentId: node.type === "document" ? node.id : undefined }, style: { border: "1px solid #93a7a0", borderRadius: 4, padding: 10, background: node.type === "medical_event" ? "#dce9df" : "#fffdf9", color: "#172335", cursor: node.type === "document" ? "pointer" : "default", fontFamily: "Baskerville, serif" } }));
   const edges: Edge[] = (graph?.edges ?? []).map(edge => ({ id: edge.id, source: edge.source, target: edge.target, label: `${Math.round(edge.confidence * 100)}%`, animated: edge.conflicts.length === 0 }));
 
+  const selectedEvent = events.find(event => event.id === selectedId) ?? approvedEvents.find(event => event.id === selectedId);
+
   return <section className="panel">
     <div className="panel-title"><div><p className="eyebrow">RELAZIONI CLINICHE</p><h2>Medical Event workspace</h2></div><select aria-label="Seleziona evento" value={selectedId ?? ""} onChange={event => setSelectedId(event.target.value)}><option value="">Nessun evento</option>{events.map(event => <option key={event.id} value={event.id}>{event.title} · {Math.round(event.confidence * 100)}%</option>)}</select></div>
-    <AssociationControls event={events.find(event => event.id === selectedId)} onApproved={event => setEvents(current => current.map(item => item.id === event.id ? event : item))} onRejected={() => { setEvents(current => current.filter(event => event.id !== selectedId)); setSelectedId(undefined); setGraph(undefined); setEvaluation(undefined); }} onRebuilt={() => window.location.reload()} />
+    <AssociationControls event={selectedEvent} onApproved={event => { setEvents(current => current.filter(item => item.id !== event.id)); setApprovedEvents(current => [event, ...current]); setSelectedId(undefined); setGraph(undefined); setEvaluation(undefined); }} onRejected={() => { setEvents(current => current.filter(event => event.id !== selectedId)); setSelectedId(undefined); setGraph(undefined); setEvaluation(undefined); }} onRebuilt={() => window.location.reload()} />
+    <section className="approved-relations" aria-label="Relazioni approvate"><div><p className="eyebrow">ARCHIVIO CONFERMATO</p><h3>Relazioni approvate</h3></div>{approvedEvents.length === 0 ? <p className="muted">Nessuna relazione approvata.</p> : <ul>{approvedEvents.map(event => <li key={event.id}><button className="approved-relation" onClick={() => setSelectedId(event.id)} type="button"><span>{event.title}</span><small>{Math.round(event.confidence * 100)}% · Apri grafo</small></button></li>)}</ul>}</section>
     {!selectedId ? <p className="muted">Un evento compare qui dopo un collegamento verificato tra prescrizione e fattura.</p> : <div className="workspace-grid">
       <aside className="workspace-aside"><strong>Documenti</strong><p>Le relazioni sono create solo con evidenze e senza conflitti maggiori.</p></aside>
       <div className="flow-canvas"><ReactFlow nodes={nodes} edges={edges} fitView onNodeClick={(_, node) => { const documentId = node.data.documentId; if (typeof documentId === "string") onOpenDocument(documentId); }}><Background /><Controls /></ReactFlow></div>

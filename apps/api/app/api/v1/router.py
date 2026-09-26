@@ -50,6 +50,7 @@ from app.schemas.api import (
     InsuranceResponse,
     LoginRequest,
     AssociationDecision,
+    AssociationRebuildResponse,
     ManualDocumentCompletion,
     MedicalEventResponse,
     MemberCreate,
@@ -437,8 +438,11 @@ def medical_event_graph(event_id: UUID, db: Session = Depends(get_db)) -> EventG
 
 
 @router.get("/medical-events", response_model=list[MedicalEventResponse])
-def list_medical_events(db: Session = Depends(get_db)) -> list[MedicalEventResponse]:
-    events = list(db.scalars(select(MedicalEvent).where(MedicalEvent.status != EventStatus.ARCHIVED).order_by(MedicalEvent.created_at.desc())))
+def list_medical_events(status: EventStatus | None = None, db: Session = Depends(get_db)) -> list[MedicalEventResponse]:
+    query = select(MedicalEvent).where(MedicalEvent.status != EventStatus.ARCHIVED)
+    if status is not None:
+        query = query.where(MedicalEvent.status == status)
+    events = list(db.scalars(query.order_by(MedicalEvent.created_at.desc())))
     titles = {item.id: refresh_legacy_event_title(db, item) for item in events}
     db.commit()
     return [MedicalEventResponse(id=item.id, title=titles[item.id], status=item.status.value, confidence=item.confidence) for item in events]
@@ -467,20 +471,34 @@ def decide_medical_event_association(event_id: UUID, payload: AssociationDecisio
     return MedicalEventResponse(id=event.id, title=event.title, status=event.status.value, confidence=event.confidence)
 
 
-@router.post("/medical-events/rebuild-associations")
-def rebuild_proposed_associations(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> dict[str, int]:
-    """Discard only unreviewed proposals, then recompute links while preserving decisions and feedback."""
-    proposed_ids = list(db.scalars(select(MedicalEvent.id).where(MedicalEvent.status == EventStatus.PROPOSED)))
-    if proposed_ids:
-        db.execute(delete(DocumentLink).where(DocumentLink.medical_event_id.in_(proposed_ids)))
-        db.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(proposed_ids)))
-        db.flush()
-    structured_documents = list(db.scalars(select(Document).where(Document.document_type.in_([DocumentType.PRESCRIPTION, DocumentType.INVOICE]))))
-    for document in structured_documents:
-        cluster_document(db, document, settings.auto_confirm_threshold, settings.suggest_threshold)
-    record_audit(db, "association.rebuilt", "MedicalEvent", UUID(int=0), {"proposals_removed": len(proposed_ids)})
+@router.post("/medical-events/rebuild-associations", response_model=AssociationRebuildResponse)
+async def rebuild_associations(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> AssociationRebuildResponse:
+    """Clear all associations and requeue original documents for a fresh local LLM analysis."""
+    event_ids = list(db.scalars(select(MedicalEvent.id)))
+    documents = list(db.scalars(select(Document).where(Document.duplicate_of_id.is_(None))))
+    db.execute(delete(DocumentLink))
+    db.execute(delete(MedicalEvent))
+    db.execute(delete(ReviewTask))
+    db.execute(delete(Prescription))
+    db.execute(delete(ExpenseDocument))
+    db.execute(delete(MedicalReport))
+    db.execute(delete(DocumentPage))
+    for document in documents:
+        document.state = DocumentState.STORED
+        document.document_type = DocumentType.UNKNOWN
+        document.patient_id = None
+        document.document_date = None
+        document.logical_name = None
+    record_audit(db, "association.rebuilt", "MedicalEvent", UUID(int=0), {"events_removed": len(event_ids), "documents_queued": len(documents)})
     db.commit()
-    return {"proposals_removed": len(proposed_ids)}
+    try:
+        redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+        for document in documents:
+            await redis.enqueue_job("process_document", str(document.id))
+        await redis.aclose()
+    except OSError as error:
+        raise HTTPException(status_code=503, detail="Relations were cleared, but the processing queue is unavailable. Retry the rebuild.") from error
+    return AssociationRebuildResponse(documents_queued=len(documents), events_removed=len(event_ids))
 
 
 @router.get("/medical-events/{event_id}/insurance-evaluation", response_model=InsuranceResponse)
