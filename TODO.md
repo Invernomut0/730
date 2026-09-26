@@ -107,6 +107,7 @@
 - [x] targeted document and household deletion
 
 ## P3 Quality
+- [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system
 - [ ] synthetic fixture generator

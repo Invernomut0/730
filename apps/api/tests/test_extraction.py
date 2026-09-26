@@ -76,3 +76,21 @@ def test_medical_report_extraction_preserves_patient_date_and_activities() -> No
     assert report.operations[0].kind == "SURGERY"
     assert report.follow_up_activities[0].scheduled_date is not None
     assert report.follow_up_activities[0].scheduled_date.isoformat() == "2024-06-25"
+
+
+def test_medical_report_extraction_normalizes_numeric_string_bounding_boxes() -> None:
+    report = MedicalReportExtraction.model_validate({
+        "patient": {"value": "Laura Bianchi", "confidence": 0.99, "bbox": ["0.12", "0.24", "0.31", "0.08"]},
+        "diagnosis_evidence": [{"kind": "CONFIRMED_DIAGNOSIS", "evidence": {"value": "Condizione documentata", "confidence": 0.9, "bbox": ["0.2", "0.3", "0.4", "0.1"]}}],
+    })
+
+    assert report.patient and report.patient.bbox == [0.12, 0.24, 0.31, 0.08]
+    assert report.diagnosis_evidence[0].evidence.bbox == [0.2, 0.3, 0.4, 0.1]
+
+
+def test_medical_report_extraction_discards_incomplete_optional_bounding_box() -> None:
+    report = MedicalReportExtraction.model_validate({
+        "patient": {"value": "Laura Bianchi", "confidence": 0.99, "bbox": [None]},
+    })
+
+    assert report.patient and report.patient.bbox is None

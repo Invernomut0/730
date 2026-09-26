@@ -221,7 +221,9 @@ during re-scans.
 Medical reports are structured locally into report date, patient, provider,
 diagnostic evidence, requested visits, documented operations, and explicit
 follow-up activities. Every extracted item keeps page/source/confidence evidence
-and is displayed in the document viewer.
+and is displayed in the document viewer. Numeric bounding-box coordinates emitted
+as strings by a local model are normalized before validation, so otherwise valid
+extractions complete automatically instead of creating a manual retry review.
 
 Patient resolution prioritizes an exact fiscal code. When no local fiscal-code
 match exists but the extracted full name (including surname-first order) has one

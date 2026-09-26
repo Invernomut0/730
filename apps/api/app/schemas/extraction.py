@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from math import isfinite
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -28,6 +29,28 @@ class EvidenceValue(BaseModel):
     source_text: str | None = None
     bbox: list[float] | None = None
     confidence: float = Field(ge=0, le=1)
+
+    @field_validator("bbox", mode="before")
+    @classmethod
+    def normalize_bbox_numbers(cls, value: object) -> object:
+        """Normalize local-model coordinates or discard incomplete optional metadata."""
+        if not isinstance(value, list):
+            return value
+        normalized: list[float] = []
+        for coordinate in value:
+            if isinstance(coordinate, str):
+                try:
+                    number = float(coordinate.strip())
+                except ValueError:
+                    return None
+            elif isinstance(coordinate, (int, float)) and not isinstance(coordinate, bool):
+                number = float(coordinate)
+            else:
+                return None
+            if not isfinite(number):
+                return None
+            normalized.append(number)
+        return normalized
 
 
 class DiagnosisEvidenceExtraction(BaseModel):
