@@ -133,6 +133,7 @@
 - [x] Aligned per-document analysis and deletion actions
 - [x] Deterministic laboratory-test and medicine item normalization
 - [x] Structured laboratory-result report recognition
+- [x] Explicit prescribed-medicine viewer summary
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

@@ -151,7 +151,9 @@ The local web origins `http://localhost:3000` and `http://127.0.0.1:3000` can
 both save these settings through the API's CORS-protected `PUT` endpoint.
 
 When opening a document, the right-hand summary panel presents the extracted
-patient name, date, diagnostic question, document type, clinician, and requested service.
+patient name, date, diagnostic question, document type, clinician, requested
+service, and a separate **Farmaci prescritti** field whenever a prescription
+contains itemized medicines.
 
 Document relationships require a matching clinical specialty or a shared
 meaningful service term. Generic wording such as "visita" is never sufficient;
