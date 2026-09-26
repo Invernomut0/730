@@ -155,6 +155,12 @@ patient name, date, diagnostic question, document type, clinician, requested
 service, and a separate **Farmaci prescritti** field whenever a prescription
 contains itemized medicines.
 
+The Inbox constrains long filenames to the document-name column, displays an
+ellipsis when needed, and exposes the full name through the native tooltip; file
+names never overlap document type, processing state, size, or actions.
+Pipeline state badges are color-coded: neutral for stored items, blue for active
+processing, green for completed analysis, amber for review, and red for errors.
+
 Document relationships require a matching clinical specialty or a shared
 meaningful service term. Generic wording such as "visita" is never sufficient;
 the local worker processes at most two structured documents concurrently to avoid

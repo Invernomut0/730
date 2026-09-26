@@ -135,6 +135,8 @@
 - [x] Structured laboratory-result report recognition
 - [x] Explicit prescribed-medicine viewer summary
 - [x] Documented specialist-visit service extraction
+- [x] Overflow-safe Inbox document filenames
+- [x] Semantic Inbox pipeline-state colors
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline
