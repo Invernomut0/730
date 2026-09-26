@@ -131,7 +131,11 @@ confidence and evidence. Its insurance panel evaluates the versioned 2026
 documentation rather than claiming a reimbursement. Link reviews show the two
 documents, score, supporting evidence and conflicts; the operator opens both
 originals before either creating an auditable confirmed event or marking the
-suggestion as unrelated. Reviews are automatically resolved when either
+suggestion as unrelated. Each link review also displays the extracted document
+type, prescription and invoice services, document dates, patient, invoice total,
+and the recorded matching signals. Until an operator confirms the episode, it
+is explicitly proposed to neither insurance nor the 730 flow; those independent
+evaluations occur only after confirmation. Reviews are automatically resolved when either
 referenced document has been deleted, so the queue never presents an action that
 cannot be completed.
 

@@ -102,6 +102,23 @@ input:hover, select:hover { border-color: #a79888; }
 .review-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; justify-content: end; }
 .review-actions .reject { color: #9e3326; border-color: #b75c4b; }
 .review-actions .reject:hover { color: #fff; background: #9e3326; }
+.review-explanations { display: grid; gap: 1rem; margin-top: 1rem; }
+.review-explanation { padding: 1.2rem; border: 1px solid var(--line); background: #fbf7f0; }
+.review-explanation header { margin-bottom: 0.9rem; }
+.review-explanation h3 { margin: 0; font-size: 1.25rem; }
+.review-document-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+.review-document-detail { display: grid; gap: 0.45rem; padding: 0.9rem; border-top: 3px solid var(--navy); background: var(--panel); }
+.review-detail-type { color: var(--coral); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.review-document-detail dl { display: flex; gap: 0.9rem; flex-wrap: wrap; margin: 0; }
+.review-document-detail dl div { display: grid; gap: 0.1rem; }
+.review-document-detail dt, .review-document-detail p span { color: var(--muted); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.review-document-detail dd { margin: 0; color: var(--ink); font-size: 0.86rem; }
+.review-document-detail p { display: grid; gap: 0.2rem; margin: 0; color: var(--navy-deep); font-size: 0.9rem; }
+.review-match-details { display: grid; gap: 0.45rem; margin-top: 0.9rem; }
+.review-match-details strong, .review-destinations strong { color: var(--navy-deep); font-size: 0.82rem; }
+.review-destinations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 0.9rem; }
+.review-destinations div { display: grid; gap: 0.2rem; padding: 0.7rem 0.8rem; border-left: 3px solid #c5b9a8; background: #f0ebe3; }
+.review-destinations span { color: var(--muted); font-size: 0.8rem; line-height: 1.35; }
 .text-button { padding: 0.45rem 0.65rem; color: var(--navy); background: transparent; border: 1px solid var(--navy); border-radius: 999px; font-weight: 700; }
 .text-button:hover { color: #fff; background: var(--navy); }
 .text-button:disabled { cursor: not-allowed; opacity: 0.45; }
@@ -125,6 +142,7 @@ input:hover, select:hover { border-color: #a79888; }
   .masthead { grid-template-columns: auto 1fr; }
   .top-nav { grid-column: 1 / -1; max-width: none; text-align: left; }
   .upload-card, .form-grid, .viewer, .workspace-grid, .reset-zone { grid-template-columns: 1fr; }
+  .review-document-details, .review-destinations { grid-template-columns: 1fr; }
   .upload-action { width: 100%; }
   .document-row { grid-template-columns: 1fr 1fr; }
   .document-name { grid-column: 1 / -1; }
