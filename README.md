@@ -160,6 +160,11 @@ ellipsis when needed, and exposes the full name through the native tooltip; file
 names never overlap document type, processing state, size, or actions.
 Pipeline state badges are color-coded: neutral for stored items, blue for active
 processing, green for completed analysis, amber for review, and red for errors.
+While documents are active, the Inbox polls their server state every five seconds
+without a page reload and shows a phase-based timebar. Its remaining duration is
+an explicitly labelled estimate based on elapsed analysis time; it changes to
+“stima in aggiornamento” rather than presenting a false completion time when a
+local model exceeds the typical duration.
 
 Document relationships require a matching clinical specialty or a shared
 meaningful service term. Generic wording such as "visita" is never sufficient;

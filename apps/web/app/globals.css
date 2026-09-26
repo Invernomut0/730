@@ -110,6 +110,11 @@ input:hover, select:hover { border-color: #a79888; }
 .delete-button { width: fit-content; padding: 0.42rem 0.65rem; color: #9e3326; background: transparent; border: 1px solid #b75c4b; border-radius: 999px; font-size: 0.76rem; font-weight: 800; }
 .delete-button:hover { color: #fff; background: #9e3326; }
 .document-actions { display: flex; min-width: 0; flex-wrap: nowrap; gap: 0.45rem; justify-content: end; white-space: nowrap; }
+.document-progress { display: grid; grid-column: 1 / -1; gap: 0.4rem; padding-top: 0.1rem; }
+.document-progress > div:first-child { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); font-size: 0.73rem; }
+.document-progress strong { color: var(--navy); font-weight: 800; }
+.document-progress-track { height: 0.38rem; overflow: hidden; border-radius: 999px; background: #dce7ec; }
+.document-progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2d7ca5, #75b2cb); transition: width 900ms ease; }
 
 .workspace-grid { display: grid; grid-template-columns: 0.85fr 2fr 1fr; gap: 1rem; min-height: 27rem; }
 .workspace-aside { padding: 1.2rem; color: var(--muted); }

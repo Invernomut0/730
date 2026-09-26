@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useState } from "react";
 
 import { EventWorkspace } from "./EventWorkspace";
 import { DocumentViewerLayer } from "./DocumentViewerLayer";
@@ -21,12 +21,43 @@ type Document = {
   document_date: string | null;
   total_amount: string | null;
   extraction: Record<string, unknown> | null;
+  analysis_started_at: string | null;
 };
 type WordBox = { text: string; left: number; top: number; width: number; height: number };
 type DocumentPage = { page_number: number; text: string; blocks: { coordinate_space?: string; words?: WordBox[] } | null };
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 type PageTab = "inbox" | "settings";
+
+const ACTIVE_DOCUMENT_STATES = new Set(["EXTRACTING", "OCR", "CLASSIFYING", "STRUCTURING", "NORMALIZING", "LINKING", "EVENT_CLUSTERING", "INSURANCE_EVALUATION"]);
+const TYPICAL_ANALYSIS_DURATION_MS = 6 * 60 * 1000;
+const STAGE_PROGRESS: Record<string, { label: string; percent: number }> = {
+  EXTRACTING: { label: "Estrazione testo", percent: 14 },
+  OCR: { label: "Lettura OCR", percent: 28 },
+  CLASSIFYING: { label: "Classificazione", percent: 42 },
+  STRUCTURING: { label: "Strutturazione dati", percent: 70 },
+  NORMALIZING: { label: "Normalizzazione", percent: 82 },
+  LINKING: { label: "Ricerca collegamenti", percent: 90 },
+  EVENT_CLUSTERING: { label: "Organizzazione eventi", percent: 95 },
+  INSURANCE_EVALUATION: { label: "Valutazione assicurativa", percent: 98 },
+};
+
+function formatDuration(milliseconds: number): string {
+  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  return seconds >= 60 ? `${Math.floor(seconds / 60)} min ${seconds % 60}s` : `${seconds}s`;
+}
+
+function analysisProgress(document: Document, now: number): { label: string; percent: number; remaining: string } | undefined {
+  if (!ACTIVE_DOCUMENT_STATES.has(document.state)) return undefined;
+  const stage = STAGE_PROGRESS[document.state] ?? { label: "Elaborazione", percent: 10 };
+  const startedAt = document.analysis_started_at ? Date.parse(document.analysis_started_at) : now;
+  const elapsed = Math.max(0, now - startedAt);
+  const percent = Math.min(98, Math.max(stage.percent, (elapsed / TYPICAL_ANALYSIS_DURATION_MS) * 100));
+  const remaining = elapsed >= TYPICAL_ANALYSIS_DURATION_MS
+    ? `In corso da ${formatDuration(elapsed)} · stima in aggiornamento`
+    : `Circa ${formatDuration(TYPICAL_ANALYSIS_DURATION_MS - elapsed)} rimanenti`;
+  return { label: stage.label, percent, remaining };
+}
 
 export default function Home() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -41,12 +72,25 @@ export default function Home() {
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
   const [activeTab, setActiveTab] = useState<PageTab>("inbox");
+  const [now, setNow] = useState(() => Date.now());
 
-  async function refresh(): Promise<void> {
+  const refresh = useCallback(async (): Promise<void> => {
     const response = await fetch(`${API}/api/v1/documents`);
     if (response.ok) setDocuments(await response.json() as Document[]);
-  }
-  useEffect(() => { void refresh(); }, []);
+  }, []);
+  const hasActiveDocuments = documents.some(document => ACTIVE_DOCUMENT_STATES.has(document.state));
+  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!hasActiveDocuments) return undefined;
+    const polling = window.setInterval(() => { void refresh(); }, 5000);
+    return () => window.clearInterval(polling);
+  }, [hasActiveDocuments, refresh]);
+  useEffect(() => {
+    if (!hasActiveDocuments) return undefined;
+    setNow(Date.now());
+    const ticker = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(ticker);
+  }, [hasActiveDocuments]);
 
   async function upload(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0];
@@ -127,9 +171,13 @@ export default function Home() {
     </section>
     <section><div className="section-heading"><div><h2>Documenti elaborati</h2><p className="section-kicker">{documents.length} nel dossier</p></div><button className="action-button" disabled={analyzing || !documents.some(document => ["STORED", "EXTRACTING", "STRUCTURING"].includes(document.state) && !document.duplicate_of_id)} onClick={() => void analyzeDocuments()} type="button">{analyzing ? "Analisi in avvio…" : "Avvia/riprova analisi"}</button></div>
       <div className="document-list">
-        {documents.length === 0 ? <p className="empty-state">Nessun documento caricato.</p> : documents.map((document) => <article key={document.id} className="document-row">
+        {documents.length === 0 ? <p className="empty-state">Nessun documento caricato.</p> : documents.map((document) => {
+          const progress = analysisProgress(document, now);
+          return <article key={document.id} className="document-row">
           <button onClick={() => void selectDocument(document.id)} className="document-name" title={document.logical_name ?? document.original_filename}><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className={`document-meta document-state state-${document.state.toLowerCase()}`}>{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span><div className="document-actions"><button className="text-button" disabled={Boolean(document.duplicate_of_id) || Boolean(reanalyzingDocumentId) || ["EXTRACTING", "OCR", "CLASSIFYING", "STRUCTURING"].includes(document.state)} onClick={() => void reanalyzeDocument(document)} type="button">{reanalyzingDocumentId === document.id ? "Rianalisi…" : "Rinforza analisi"}</button><button className="delete-button" type="button" onClick={() => void deleteDocument(document)}>Elimina</button></div>
-        </article>)}
+          {progress && <div className="document-progress" aria-label={`${progress.label}: ${Math.round(progress.percent)}%`} role="status"><div><strong>{progress.label}</strong><span>{progress.remaining}</span></div><div aria-hidden="true" className="document-progress-track"><span style={{ width: `${progress.percent}%` }} /></div></div>}
+        </article>;
+        })}
       </div>
       {documents.find(item => item.id === selectedDocumentId) && <section className="panel viewer" id="document-viewer"><div><h3>Anteprima originale</h3><div className="viewer-preview-wrap"><img className="viewer-preview" alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} />{(pages[0]?.blocks?.words ?? []).map((word, index) => <button aria-label={`Mostra dettaglio parola ${word.text}`} className={`word-box${selectedWord === word ? " selected" : ""}`} key={`${word.text}-${index}`} onClick={() => setSelectedWord(word)} style={{ left: `${word.left * 100}%`, top: `${word.top * 100}%`, width: `${word.width * 100}%`, height: `${word.height * 100}%` }} title={word.text} type="button" />)}</div></div><div className="viewer-copy"><h3>{documents.find(item => item.id === selectedDocumentId)?.extraction ? "Campi estratti" : "Testo estratto"}</h3><p>{pages[0]?.blocks?.words?.length ? `${pages[0].blocks.words.length} parole mappate sull'anteprima.` : "Coordinate delle parole non ancora disponibili."}</p>{selectedWord && <div className="word-detail"><strong>{selectedWord.text}</strong><span>Pagina 1 · x {Math.round(selectedWord.left * 100)}% · y {Math.round(selectedWord.top * 100)}% · {Math.round(selectedWord.width * 100)}% × {Math.round(selectedWord.height * 100)}%</span></div>}<pre>{documents.find(item => item.id === selectedDocumentId)?.extraction ? JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction, null, 2) : pages.map(page => page.text).join("\n\n") || "Testo in attesa di estrazione."}</pre></div></section>}
     </section>

@@ -137,6 +137,7 @@
 - [x] Documented specialist-visit service extraction
 - [x] Overflow-safe Inbox document filenames
 - [x] Semantic Inbox pipeline-state colors
+- [x] Live analysis polling and phase timebars
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

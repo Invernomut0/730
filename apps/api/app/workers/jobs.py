@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import ClassVar
 from uuid import UUID
 from pathlib import Path
@@ -66,6 +67,7 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             db.commit()
             return
         document.state = DocumentState.EXTRACTING
+        document.analysis_started_at = document.analysis_started_at or datetime.now(UTC)
         db.commit()
         path = settings.storage_root / document.storage_key
         generate_thumbnail(path, document.mime_type, thumbnail_path(settings.storage_root, document.sha256))

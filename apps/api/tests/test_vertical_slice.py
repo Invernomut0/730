@@ -165,6 +165,8 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.refresh(invoice_document)
         assert prescription_document.state == DocumentState.EXTRACTING
         assert invoice_document.state == DocumentState.EXTRACTING
+        assert prescription_document.analysis_started_at is not None
+        assert invoice_document.analysis_started_at is not None
         with TestClient(app) as client:
             saved_settings = client.put("/api/v1/settings/llm", json={
                 "document_model": "small-extraction-model",
@@ -193,6 +195,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert queued_documents == [str(prescription_document_id)]
         database.refresh(prescription_document)
         assert prescription_document.state == DocumentState.EXTRACTING
+        assert prescription_document.analysis_started_at is not None
     finally:
         event_ids = select(MedicalEvent.id).where(MedicalEvent.household_member_id == member_id) if member_id else select(MedicalEvent.id).where(False)
         database.execute(delete(DocumentLink).where(DocumentLink.source_document_id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))

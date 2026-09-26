@@ -68,6 +68,7 @@ class DocumentResponse(BaseModel):
     total_amount: str | None
     extraction: dict[str, object] | None
     created_at: datetime
+    analysis_started_at: datetime | None
 
 
 class UploadResponse(BaseModel):

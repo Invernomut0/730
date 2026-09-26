@@ -110,6 +110,7 @@ def document_response(document: Document, db: Session) -> DocumentResponse:
         total_amount=str(expense.total_amount) if expense and expense.total_amount is not None else None,
         extraction=prescription.extraction if prescription else expense.extraction if expense else report.extraction if report else clinical.extraction if clinical else None,
         created_at=document.created_at,
+        analysis_started_at=document.analysis_started_at,
     )
 
 
@@ -222,6 +223,7 @@ async def stop_all_jobs(db: Session = Depends(get_db), settings: Settings = Depe
     documents = list(db.scalars(select(Document).where(Document.state.in_(active_states))))
     for document in documents:
         document.state = DocumentState.STORED
+        document.analysis_started_at = None
         record_audit(db, "document.analysis_stopped", "Document", document.id)
     db.commit()
     return JobControlResponse(jobs_paused=True, queued_jobs_discarded=discarded)
@@ -303,6 +305,7 @@ async def analyze_stored_documents(db: Session = Depends(get_db), settings: Sett
     )
     for document in documents:
         document.state = DocumentState.EXTRACTING
+        document.analysis_started_at = datetime.now(UTC)
         record_audit(db, "document.analysis_queued", "Document", document.id)
     db.commit()
     try:
@@ -313,6 +316,7 @@ async def analyze_stored_documents(db: Session = Depends(get_db), settings: Sett
     except OSError as error:
         for document in documents:
             document.state = DocumentState.STORED
+            document.analysis_started_at = None
         db.commit()
         raise HTTPException(status_code=503, detail="The processing queue is unavailable. No document was started.") from error
     return DocumentAnalysisResponse(documents_queued=len(documents))
@@ -345,6 +349,7 @@ async def reanalyze_document(document_id: UUID, db: Session = Depends(get_db), s
     db.execute(delete(AIExecution).where(AIExecution.document_id == document.id))
     db.execute(delete(ReviewTask).where(ReviewTask.entity_type == "Document", ReviewTask.entity_id == document.id))
     document.state = DocumentState.EXTRACTING
+    document.analysis_started_at = datetime.now(UTC)
     document.document_type = DocumentType.UNKNOWN
     document.patient_id = None
     document.document_date = None
@@ -357,6 +362,7 @@ async def reanalyze_document(document_id: UUID, db: Session = Depends(get_db), s
         await redis.aclose()
     except OSError as error:
         document.state = DocumentState.STORED
+        document.analysis_started_at = None
         db.commit()
         raise HTTPException(status_code=503, detail="The processing queue is unavailable. The document was not started.") from error
     return DocumentAnalysisResponse(documents_queued=1)

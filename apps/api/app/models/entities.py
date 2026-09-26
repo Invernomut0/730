@@ -98,6 +98,7 @@ class Document(Timestamped, Base):
     document_type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), default=DocumentType.UNKNOWN)
     patient_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("household_members.id"), nullable=True)
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    analysis_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duplicate_of_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
     pages: Mapped[list[DocumentPage]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
