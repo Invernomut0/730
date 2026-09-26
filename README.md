@@ -135,6 +135,9 @@ An in-flight local model request is allowed to finish so that no partially
 committed document state is produced; use **Riprendi job** before starting new
 analysis.
 
+The local web origins `http://localhost:3000` and `http://127.0.0.1:3000` can
+both save these settings through the API's CORS-protected `PUT` endpoint.
+
 LM Studio reasoning models that leave the OpenAI JSON-schema `content` field
 empty are requested in text mode instead; the API then parses JSON only and
 validates it against the same Pydantic extraction schema before persistence. The

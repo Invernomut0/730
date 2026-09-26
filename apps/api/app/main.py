@@ -9,14 +9,14 @@ from app.api.v1.router import router as api_router
 from app.core.config import get_settings
 from app.core.log_redaction import configure_log_redaction
 
-app = FastAPI(title="HealthDocs API", version="0.1.51")
+app = FastAPI(title="HealthDocs API", version="0.1.52")
 settings = get_settings()
 configure_log_redaction()
 app.add_middleware(
 	CORSMiddleware,
 	allow_origins=settings.cors_origins,
 	allow_credentials=True,
-	allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+	allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 	allow_headers=["Content-Type"],
 )
 app.add_middleware(

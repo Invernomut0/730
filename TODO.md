@@ -119,6 +119,7 @@
 - [x] Large-model fallback extraction and guarded relationship matching
 - [x] Runtime LLM routing and safe job pause controls
 - [x] Dedicated settings tab with runtime configuration feedback
+- [x] CORS preflight support for runtime settings updates
 - [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system

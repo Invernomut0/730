@@ -20,7 +20,7 @@ def test_argon2_password_verification_rejects_wrong_password() -> None:
 
 
 @pytest.mark.parametrize("origin", ["http://localhost:3000", "http://127.0.0.1:3000"])
-@pytest.mark.parametrize("method", ["POST", "DELETE"])
+@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
 def test_local_web_origins_can_preflight_mutating_requests(origin: str, method: str) -> None:
     with TestClient(app) as client:
         response = client.options(
