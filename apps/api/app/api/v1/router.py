@@ -73,6 +73,7 @@ from app.services.precompiled_730 import import_csv, reconcile
 from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aifa_csv, match_receipt_lines
 from app.services.database_reset import reset_application_database
 from app.services.deletion import delete_document_group, delete_household
+from app.services.eventing import medical_event_title, refresh_legacy_event_title
 
 router = APIRouter(prefix="/api/v1")
 
@@ -419,23 +420,25 @@ def medical_event_graph(event_id: UUID, db: Session = Depends(get_db)) -> EventG
     event = db.get(MedicalEvent, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Medical event not found.")
-    nodes = [GraphNode(id=str(event.id), type="medical_event", label=event.title, metadata={"confidence": event.confidence}, status=event.status.value)]
+    event_title = refresh_legacy_event_title(db, event)
+    db.commit()
+    nodes = [GraphNode(id=str(event.id), type="medical_event", label=event_title, metadata={"confidence": event.confidence}, status=event.status.value)]
     edges: list[GraphEdge] = []
     for link in db.scalars(select(DocumentLink).where(DocumentLink.medical_event_id == event.id)):
         for document_id in (link.source_document_id, link.target_document_id):
             document = db.get(Document, document_id)
             if document and not any(node.id == str(document.id) for node in nodes):
-                nodes.append(GraphNode(id=str(document.id), type="document", label=document.original_filename, metadata={"document_type": document.document_type.value}, status=document.state.value))
+                nodes.append(GraphNode(id=str(document.id), type="document", label=document.logical_name or document.original_filename, metadata={"document_type": document.document_type.value}, status=document.state.value))
         edges.append(GraphEdge(id=str(link.id), source=str(link.source_document_id), target=str(link.target_document_id), type=link.relation_type, confidence=link.score, evidence=link.evidence, conflicts=link.conflicts))
     return EventGraph(nodes=nodes, edges=edges)
 
 
 @router.get("/medical-events", response_model=list[MedicalEventResponse])
 def list_medical_events(db: Session = Depends(get_db)) -> list[MedicalEventResponse]:
-    return [
-        MedicalEventResponse(id=item.id, title=item.title, status=item.status.value, confidence=item.confidence)
-        for item in db.scalars(select(MedicalEvent).order_by(MedicalEvent.created_at.desc()))
-    ]
+    events = list(db.scalars(select(MedicalEvent).order_by(MedicalEvent.created_at.desc())))
+    titles = {item.id: refresh_legacy_event_title(db, item) for item in events}
+    db.commit()
+    return [MedicalEventResponse(id=item.id, title=titles[item.id], status=item.status.value, confidence=item.confidence) for item in events]
 
 
 @router.get("/medical-events/{event_id}/insurance-evaluation", response_model=InsuranceResponse)
@@ -547,7 +550,7 @@ def resolve_review_task(task_id: UUID, payload: ReviewResolution, db: Session = 
             confidence = float(score) if isinstance(score, int | float) else 0.0
             event = MedicalEvent(
                 household_member_id=(prescription.patient_id if prescription else None) or (expense.patient_id if expense else None),
-                title="Manually confirmed medical care",
+                title=medical_event_title(prescription, expense) if prescription and expense else "Prestazione sanitaria confermata",
                 status=EventStatus.CONFIRMED,
                 confidence=confidence,
             )

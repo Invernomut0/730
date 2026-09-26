@@ -43,6 +43,18 @@ def coverage_amount(amount: Decimal, rules: dict[str, object], in_network: bool 
     return min(eligible, Decimal(str(limit))) if limit is not None else eligible
 
 
+def expense_amount(expense: ExpenseDocument) -> Decimal | None:
+    """Return an invoice total only when a structured source contains a valid amount."""
+    value = expense.total_amount if expense.total_amount is not None else expense.extraction.get("total_amount")
+    if isinstance(value, dict):
+        value = value.get("value")
+    try:
+        amount = Decimal(str(value))
+    except (ArithmeticError, ValueError):
+        return None
+    return amount if amount >= 0 else None
+
+
 def evaluate_event(db: Session, event_id: UUID, category_name: str = "specialist_and_diagnostics") -> InsuranceEvaluation:
     """Evaluate linked documents against the reviewed local 2026 policy category."""
     ruleset = yaml.safe_load(Path("/rules/insurance/2026.yml").read_text())
@@ -64,9 +76,13 @@ def evaluate_event(db: Session, event_id: UUID, category_name: str = "specialist
         required.append("diagnosis_or_clinical_indication")
     evidence = {"prescription" if prescriptions else "", "valid_expense_document" if expenses else "", "diagnosis_or_clinical_indication" if diagnosis else ""}
     missing = [item for item in dict.fromkeys(required) if item not in evidence]
-    amount = sum((Decimal(str(item.total_amount or 0)) for item in expenses), Decimal(0))
+    amounts = [amount for item in expenses if (amount := expense_amount(item)) is not None]
+    amount = sum(amounts, Decimal(0))
     complete = not missing
-    return InsuranceEvaluation(category=category_name, status="candidate" if complete else "review_required", documentation_complete=complete, estimated_eligible_amount=coverage_amount(amount, category) if complete else Decimal(0), rules=[f"{ruleset['version']}: {category_name}", "human_review_required"], evidence=sorted(item for item in evidence if item), missing_documents=missing, warnings=["Candidate only: policy verification remains required."])
+    warnings = ["Candidate only: policy verification remains required."]
+    if expenses and not amounts:
+        warnings.append("Invoice total is unavailable: no reimbursement estimate was calculated.")
+    return InsuranceEvaluation(category=category_name, status="candidate" if complete else "review_required", documentation_complete=complete, estimated_eligible_amount=coverage_amount(amount, category) if complete and amounts else Decimal(0), rules=[f"{ruleset['version']}: {category_name}", "human_review_required"], evidence=sorted(item for item in evidence if item), missing_documents=missing, warnings=warnings)
 
 
 def evaluate_specialist_and_diagnostics(db: Session, event_id: UUID) -> InsuranceEvaluation:

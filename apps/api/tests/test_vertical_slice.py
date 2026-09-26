@@ -4,9 +4,11 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
+from app.main import app
 from app.models.entities import (
     AIExecution,
     Document,
@@ -61,8 +63,8 @@ async def test_prescription_invoice_vertical_slice_creates_event() -> None:
         database.add(member)
         database.flush()
         member_id = member.id
-        prescription_document = Document(original_filename="synthetic-prescription.pdf", mime_type="application/pdf", byte_size=1, sha256="a" * 64, storage_key=f"originals/{uuid4()}.pdf", document_type=DocumentType.PRESCRIPTION)
-        invoice_document = Document(original_filename="synthetic-invoice.pdf", mime_type="application/pdf", byte_size=1, sha256="b" * 64, storage_key=f"originals/{uuid4()}.pdf", document_type=DocumentType.INVOICE)
+        prescription_document = Document(original_filename="synthetic-prescription.pdf", logical_name="2026-03-01_prescrizione_ortopedica.pdf", mime_type="application/pdf", byte_size=1, sha256="a" * 64, storage_key=f"originals/{uuid4()}.pdf", document_type=DocumentType.PRESCRIPTION)
+        invoice_document = Document(original_filename="synthetic-invoice.pdf", logical_name="2026-03-05_fattura_ortopedica.pdf", mime_type="application/pdf", byte_size=1, sha256="b" * 64, storage_key=f"originals/{uuid4()}.pdf", document_type=DocumentType.INVOICE)
         database.add_all([prescription_document, invoice_document])
         database.commit()
         prescription_document_id, invoice_document_id = prescription_document.id, invoice_document.id
@@ -75,10 +77,18 @@ async def test_prescription_invoice_vertical_slice_creates_event() -> None:
 
         event = database.scalar(select(MedicalEvent).where(MedicalEvent.household_member_id == member.id))
         assert event is not None
+        assert event.title == "visita ortopedica"
+        event.title = "Linked medical care"
+        database.commit()
         assert event.confidence == pytest.approx(0.95)
         link = database.scalar(select(DocumentLink).where(DocumentLink.medical_event_id == event.id))
         assert link is not None
         assert link.evidence == ["same_patient", "invoice_4_days_after_prescription", "service_matches_prescription"]
+        with TestClient(app) as client:
+            graph = client.get(f"/api/v1/medical-events/{event.id}/graph")
+        assert graph.status_code == 200
+        assert {node["label"] for node in graph.json()["nodes"]} >= {"2026-03-01_prescrizione_ortopedica.pdf", "2026-03-05_fattura_ortopedica.pdf"}
+        assert any(node["label"] == "visita ortopedica" for node in graph.json()["nodes"])
         assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id)).patient_id == member.id
         assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id)).patient_id == member.id
     finally:

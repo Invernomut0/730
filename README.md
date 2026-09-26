@@ -139,6 +139,14 @@ evaluations occur only after confirmation. Reviews are automatically resolved wh
 referenced document has been deleted, so the queue never presents an action that
 cannot be completed.
 
+Graph document nodes use the logical, human-readable filename and can be
+clicked to open the original-document viewer with its extracted fields. Event
+titles use the first extracted requested or invoiced service rather than a
+generic fixed name; legacy generic titles are corrected on their next API read.
+A reimbursement estimate is displayed only when the invoice
+contains a structured total; otherwise the UI says that the estimate is not
+available rather than presenting a misleading €0 amount.
+
 Invoice-to-prescription links require a strict 0–30 day window: an invoice dated
 before its prescription or more than 30 days after it is excluded from matching,
 cannot be manually confirmed, and any legacy proposal is automatically archived

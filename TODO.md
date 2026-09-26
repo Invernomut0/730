@@ -109,6 +109,7 @@
 ## P3 Quality
 - [x] Strict chronological filtering for prescription/invoice links
 - [x] Explain matching data and downstream destinations in link reviews
+- [x] Open logical-name graph nodes in the document viewer
 - [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system
