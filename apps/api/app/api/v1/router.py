@@ -225,11 +225,11 @@ def list_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
 
 @router.post("/documents/analyze", response_model=DocumentAnalysisResponse)
 async def analyze_stored_documents(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DocumentAnalysisResponse:
-    """Queue each original document waiting in storage exactly once for local analysis."""
+    """Queue original documents waiting in storage or stalled in extraction for local analysis."""
     documents = list(
         db.scalars(
             select(Document).where(
-                Document.state == DocumentState.STORED,
+                Document.state.in_([DocumentState.STORED, DocumentState.EXTRACTING]),
                 Document.duplicate_of_id.is_(None),
             )
         )

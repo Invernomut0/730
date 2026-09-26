@@ -14,8 +14,9 @@ multiple worker jobs overlap.
 
 When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
 **Avvia analisi documenti** above the Inbox. It queues each non-duplicate
-stored document once for the local worker and immediately marks it as in
-progress, so repeated clicks cannot add duplicate analysis jobs.
+stored document, or a document visibly stuck in `EXTRACTING`, for the local
+worker. This makes stalled analyses recoverable without modifying the immutable
+original.
 # HealthDocs 730
 
 Local-first web application for managing multi-year household health documents, insurance claims and Italian 730 tax preparation.

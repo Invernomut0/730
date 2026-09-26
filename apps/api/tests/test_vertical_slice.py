@@ -135,7 +135,7 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
             duplicate_analysis = client.post("/api/v1/documents/analyze")
         assert analysis.status_code == 200
         assert {str(prescription_document_id), str(invoice_document_id)}.issubset(queued_documents)
-        assert duplicate_analysis.json()["documents_queued"] == 0
+        assert duplicate_analysis.json()["documents_queued"] >= 2
         database.refresh(prescription_document)
         database.refresh(invoice_document)
         assert prescription_document.state == DocumentState.EXTRACTING

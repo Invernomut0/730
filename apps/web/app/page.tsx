@@ -75,7 +75,7 @@ export default function Home() {
     setAnalyzing(false);
     if (!response.ok) { const body = await response.json() as { detail?: string }; setMessage(body.detail ?? "Impossibile avviare l’analisi."); return; }
     const result = await response.json() as { documents_queued: number };
-    setMessage(result.documents_queued ? `${result.documents_queued} documenti sono ora in analisi locale.` : "Non ci sono documenti in attesa di analisi.");
+    setMessage(result.documents_queued ? `${result.documents_queued} documenti sono ora in analisi locale.` : "Non ci sono documenti in attesa o bloccati in analisi.");
     await refresh();
   }
   async function resetDatabase(): Promise<void> {
@@ -102,7 +102,7 @@ export default function Home() {
         {uploading ? "Caricamento…" : "Scegli documento"}<input aria-label="Carica documento" type="file" accept="application/pdf,image/png,image/jpeg,image/tiff,image/heic" onChange={upload} disabled={uploading} hidden />
       </label>
     </section>
-    <section><div className="section-heading"><div><h2>Documenti elaborati</h2><p className="section-kicker">{documents.length} nel dossier</p></div><button className="action-button" disabled={analyzing || !documents.some(document => document.state === "STORED" && !document.duplicate_of_id)} onClick={() => void analyzeDocuments()} type="button">{analyzing ? "Analisi in avvio…" : "Avvia analisi documenti"}</button></div>
+    <section><div className="section-heading"><div><h2>Documenti elaborati</h2><p className="section-kicker">{documents.length} nel dossier</p></div><button className="action-button" disabled={analyzing || !documents.some(document => ["STORED", "EXTRACTING"].includes(document.state) && !document.duplicate_of_id)} onClick={() => void analyzeDocuments()} type="button">{analyzing ? "Analisi in avvio…" : "Avvia/riprova analisi"}</button></div>
       <div className="document-list">
         {documents.length === 0 ? <p className="empty-state">Nessun documento caricato.</p> : documents.map((document) => <article key={document.id} className="document-row">
           <button onClick={() => void selectDocument(document.id)} className="document-name"><strong>{document.logical_name ?? document.original_filename}{document.duplicate_of_id ? " · duplicato rilevato" : ""}</strong><small>{document.patient_name ?? "Paziente da risolvere"} · {document.document_date ?? "Data da estrarre"}</small></button><span className="document-meta">{document.document_type}</span><span className="document-meta document-state">{document.state}</span><span className="document-meta">{document.total_amount ? `€ ${document.total_amount}` : `${Math.ceil(document.byte_size / 1024)} KB`}</span><button className="delete-button" type="button" onClick={() => void deleteDocument(document)}>Elimina</button>
