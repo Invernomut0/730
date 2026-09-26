@@ -114,6 +114,7 @@
 - [x] Manual completion for unclassified document reviews
 - [x] Contextual draggable document viewer
 - [x] Full LLM relationship rebuild, duplicate prevention, and approved archive
+- [x] Manual start for pending local document analysis
 - [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system

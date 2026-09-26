@@ -11,6 +11,11 @@ document for a new local LM Studio extraction. The new relation list is built
 only from that fresh LLM analysis. A database uniqueness constraint on each
 prescription/invoice document pair prevents duplicate links, including when
 multiple worker jobs overlap.
+
+When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
+**Avvia analisi documenti** above the Inbox. It queues each non-duplicate
+stored document once for the local worker and immediately marks it as in
+progress, so repeated clicks cannot add duplicate analysis jobs.
 # HealthDocs 730
 
 Local-first web application for managing multi-year household health documents, insurance claims and Italian 730 tax preparation.

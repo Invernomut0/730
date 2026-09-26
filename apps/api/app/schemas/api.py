@@ -75,6 +75,10 @@ class UploadResponse(BaseModel):
     job_status: str
 
 
+class DocumentAnalysisResponse(BaseModel):
+    documents_queued: int
+
+
 class GraphNode(BaseModel):
     id: str
     type: str

@@ -129,6 +129,17 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.refresh(invoice_document)
         assert prescription_document.state == DocumentState.STORED
         assert invoice_document.state == DocumentState.STORED
+        queued_documents.clear()
+        with TestClient(app) as client:
+            analysis = client.post("/api/v1/documents/analyze")
+            duplicate_analysis = client.post("/api/v1/documents/analyze")
+        assert analysis.status_code == 200
+        assert {str(prescription_document_id), str(invoice_document_id)}.issubset(queued_documents)
+        assert duplicate_analysis.json()["documents_queued"] == 0
+        database.refresh(prescription_document)
+        database.refresh(invoice_document)
+        assert prescription_document.state == DocumentState.EXTRACTING
+        assert invoice_document.state == DocumentState.EXTRACTING
     finally:
         event_ids = select(MedicalEvent.id).where(MedicalEvent.household_member_id == member_id) if member_id else select(MedicalEvent.id).where(False)
         database.execute(delete(DocumentLink).where(DocumentLink.source_document_id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))

@@ -40,6 +40,7 @@ from app.schemas.api import (
     DatabaseResetRequest,
     DatabaseResetResponse,
     DeletionResponse,
+    DocumentAnalysisResponse,
     DocumentResponse,
     EventGraph,
     GraphEdge,
@@ -220,6 +221,34 @@ async def upload_document(
 @router.get("/documents", response_model=list[DocumentResponse])
 def list_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
     return [document_response(item, db) for item in db.scalars(select(Document).order_by(Document.created_at.desc()))]
+
+
+@router.post("/documents/analyze", response_model=DocumentAnalysisResponse)
+async def analyze_stored_documents(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DocumentAnalysisResponse:
+    """Queue each original document waiting in storage exactly once for local analysis."""
+    documents = list(
+        db.scalars(
+            select(Document).where(
+                Document.state == DocumentState.STORED,
+                Document.duplicate_of_id.is_(None),
+            )
+        )
+    )
+    for document in documents:
+        document.state = DocumentState.EXTRACTING
+        record_audit(db, "document.analysis_queued", "Document", document.id)
+    db.commit()
+    try:
+        redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+        for document in documents:
+            await redis.enqueue_job("process_document", str(document.id))
+        await redis.aclose()
+    except OSError as error:
+        for document in documents:
+            document.state = DocumentState.STORED
+        db.commit()
+        raise HTTPException(status_code=503, detail="The processing queue is unavailable. No document was started.") from error
+    return DocumentAnalysisResponse(documents_queued=len(documents))
 
 
 @router.delete("/documents/{document_id}", response_model=DeletionResponse)
