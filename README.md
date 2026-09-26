@@ -144,6 +144,8 @@ Each original document in the Inbox has a **Rinforza analisi** action. It
 removes only that document's derived extraction, review, and generated link
 data, then queues a fresh local analysis. The action is unavailable while that
 document is already processing or when it is an exact duplicate.
+The per-document reanalysis and deletion actions remain side by side on desktop
+rows for fast operational review.
 
 The local web origins `http://localhost:3000` and `http://127.0.0.1:3000` can
 both save these settings through the API's CORS-protected `PUT` endpoint.

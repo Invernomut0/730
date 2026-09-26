@@ -130,6 +130,7 @@
 - [x] Small-model structured extraction with itemized drug and lab-test matching
 - [x] Generic structured fallback for documents requiring review
 - [x] Per-document forced local reanalysis action
+- [x] Aligned per-document analysis and deletion actions
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

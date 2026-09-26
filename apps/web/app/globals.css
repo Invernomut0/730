@@ -48,7 +48,7 @@ input:hover, select:hover { border-color: #a79888; }
 .section-heading h2 { margin: 0; }
 .section-kicker { margin: 0; color: var(--muted); font-size: 0.85rem; }
 .document-list { overflow: hidden; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
-.document-row { display: grid; grid-template-columns: minmax(15rem, 2fr) repeat(4, minmax(6rem, 1fr)) auto; gap: 1rem; align-items: center; padding: 1.15rem 1.3rem; border-bottom: 1px solid var(--line); transition: background 160ms ease; }
+.document-row { display: grid; grid-template-columns: minmax(15rem, 2fr) repeat(3, minmax(6rem, 1fr)) minmax(max-content, 17.5rem); gap: 1rem; align-items: center; padding: 1.15rem 1.3rem; border-bottom: 1px solid var(--line); transition: background 160ms ease; }
 .document-row:last-child { border-bottom: 0; }
 .document-row:hover { background: #fbf6ef; }
 .document-name { padding: 0; color: inherit; background: transparent; border: 0; text-align: left; }
@@ -103,7 +103,7 @@ input:hover, select:hover { border-color: #a79888; }
 .feedback { min-height: 1.3rem; color: var(--coral); font-size: 0.88rem; font-weight: 700; }
 .delete-button { width: fit-content; padding: 0.42rem 0.65rem; color: #9e3326; background: transparent; border: 1px solid #b75c4b; border-radius: 999px; font-size: 0.76rem; font-weight: 800; }
 .delete-button:hover { color: #fff; background: #9e3326; }
-.document-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; justify-content: end; }
+.document-actions { display: flex; flex-wrap: nowrap; gap: 0.45rem; justify-content: end; white-space: nowrap; }
 
 .workspace-grid { display: grid; grid-template-columns: 0.85fr 2fr 1fr; gap: 1rem; min-height: 27rem; }
 .workspace-aside { padding: 1.2rem; color: var(--muted); }
