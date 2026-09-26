@@ -248,6 +248,11 @@ logical name (`date_type_hash.ext`) while retaining the immutable original and
 source filename. Exact SHA-256 duplicates are linked and are not processed again
 during re-scans.
 
+Opening a document from the Inbox, a review, or a graph node displays this data
+in a floating, draggable viewer layer. This keeps the current work context
+visible; drag its header to reposition it and use **Chiudi** to return to the
+underlying workflow.
+
 Medical reports are structured locally into report date, patient, provider,
 diagnostic evidence, requested visits, documented operations, and explicit
 follow-up activities. Every extracted item keeps page/source/confidence evidence

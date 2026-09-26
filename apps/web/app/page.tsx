@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useState } from "react";
 
 import { EventWorkspace } from "./EventWorkspace";
+import { DocumentViewerLayer } from "./DocumentViewerLayer";
 import { FamilyPanel } from "./FamilyPanel";
 import { Precompiled730Panel } from "./Precompiled730Panel";
 
@@ -98,9 +99,10 @@ export default function Home() {
       </div>
       {documents.find(item => item.id === selectedDocumentId) && <section className="panel viewer" id="document-viewer"><div><h3>Anteprima originale</h3><div className="viewer-preview-wrap"><img className="viewer-preview" alt="Anteprima documento" src={`${API}/api/v1/documents/${selectedDocumentId}/thumbnail`} />{(pages[0]?.blocks?.words ?? []).map((word, index) => <button aria-label={`Mostra dettaglio parola ${word.text}`} className={`word-box${selectedWord === word ? " selected" : ""}`} key={`${word.text}-${index}`} onClick={() => setSelectedWord(word)} style={{ left: `${word.left * 100}%`, top: `${word.top * 100}%`, width: `${word.width * 100}%`, height: `${word.height * 100}%` }} title={word.text} type="button" />)}</div></div><div className="viewer-copy"><h3>{documents.find(item => item.id === selectedDocumentId)?.extraction ? "Campi estratti" : "Testo estratto"}</h3><p>{pages[0]?.blocks?.words?.length ? `${pages[0].blocks.words.length} parole mappate sull'anteprima.` : "Coordinate delle parole non ancora disponibili."}</p>{selectedWord && <div className="word-detail"><strong>{selectedWord.text}</strong><span>Pagina 1 · x {Math.round(selectedWord.left * 100)}% · y {Math.round(selectedWord.top * 100)}% · {Math.round(selectedWord.width * 100)}% × {Math.round(selectedWord.height * 100)}%</span></div>}<pre>{documents.find(item => item.id === selectedDocumentId)?.extraction ? JSON.stringify(documents.find(item => item.id === selectedDocumentId)?.extraction, null, 2) : pages.map(page => page.text).join("\n\n") || "Testo in attesa di estrazione."}</pre></div></section>}
     </section>
+    <DocumentViewerLayer document={documents.find(item => item.id === selectedDocumentId)} pages={pages} onClose={() => { setSelectedDocumentId(undefined); setPages([]); setSelectedWord(undefined); }} />
     <FamilyPanel />
     <Precompiled730Panel />
-    <EventWorkspace onOpenDocument={async id => { await selectDocument(id); requestAnimationFrame(() => document.getElementById("document-viewer")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
+    <EventWorkspace onOpenDocument={id => { void selectDocument(id); }} />
     <section className="reset-zone" aria-labelledby="reset-title">
       <div><p className="eyebrow">ZONA RISERVATA</p><h2 id="reset-title">Azzera il dossier locale</h2><p>Elimina definitivamente tutti i dati del database: documenti, famiglia, eventi, estrazioni, review, cataloghi e audit. I file in <code>data/</code> non vengono rimossi.</p></div>
       <div className="reset-controls"><label>Digita <strong>RESET</strong> per abilitare il comando<input aria-label="Conferma reset database" value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value)} placeholder="RESET" autoComplete="off" /></label><button className="reset-button" type="button" disabled={resetConfirmation !== "RESET" || resetting} onClick={() => void resetDatabase()}>{resetting ? "Azzeramento…" : "Azzera database"}</button></div>

@@ -65,6 +65,15 @@ input:hover, select:hover { border-color: #a79888; }
 .word-detail span { color: var(--muted); }
 .viewer-copy p { max-height: 7rem; overflow: auto; color: var(--muted); }
 .viewer-copy pre { max-height: 20rem; overflow: auto; padding: 1rem; color: #d8ead9; background: var(--navy-deep); font-size: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.document-list + .viewer { display: none; }
+.document-viewer-layer { position: fixed; z-index: 20; width: min(58rem, calc(100vw - 1.5rem)); max-height: calc(100vh - 1.5rem); overflow: auto; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 24px 60px rgba(26, 41, 55, 0.3); }
+.document-viewer-drag-handle { display: flex; justify-content: space-between; gap: 1rem; align-items: start; padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); background: #f3f8f3; cursor: grab; user-select: none; touch-action: none; }
+.document-viewer-drag-handle:active { cursor: grabbing; }
+.document-viewer-drag-handle .eyebrow { margin-bottom: 0.15rem; }
+.document-viewer-drag-handle h3 { margin: 0; font-size: 1.05rem; }
+.viewer-close { padding: 0.38rem 0.6rem; color: var(--navy); background: var(--panel); border: 1px solid var(--navy); border-radius: 999px; font-size: 0.78rem; font-weight: 800; }
+.viewer-close:hover { color: #fff; background: var(--navy); }
+.document-viewer-layer-content { display: grid; grid-template-columns: minmax(14rem, 0.85fr) minmax(0, 1.15fr); gap: 1rem; padding: 1rem; }
 
 .panel { margin-top: 2.5rem; padding: clamp(1.25rem, 3vw, 2rem); }
 .panel-title { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; margin-bottom: 1.2rem; }
@@ -155,6 +164,8 @@ input:hover, select:hover { border-color: #a79888; }
   .masthead { grid-template-columns: auto 1fr; }
   .top-nav { grid-column: 1 / -1; max-width: none; text-align: left; }
   .upload-card, .form-grid, .viewer, .workspace-grid, .reset-zone { grid-template-columns: 1fr; }
+  .document-viewer-layer { left: 0.5rem !important; top: 0.5rem !important; width: calc(100vw - 1rem); }
+  .document-viewer-layer-content { grid-template-columns: 1fr; }
   .review-document-details, .review-destinations { grid-template-columns: 1fr; }
   .manual-form { grid-template-columns: 1fr; }
   .upload-action { width: 100%; }
