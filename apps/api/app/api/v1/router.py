@@ -157,19 +157,20 @@ def logout(request: Request) -> dict[str, str]:
 
 @router.get("/health/ai")
 async def ai_health(settings: Settings = Depends(get_settings)) -> dict[str, object]:
-    provider = LMStudioProvider(settings)
+    effective = await runtime_settings(settings)
+    provider = LMStudioProvider(effective)
     try:
         models = await provider.models()
-        configured = settings.lmstudio_main_model
+        configured = effective.lmstudio_main_model
         return {"lmstudio": {"connected": True, "model": configured, "configured_model_available": configured in models}}
     except LLMUnavailable:
-        return {"lmstudio": {"connected": False, "model": settings.lmstudio_main_model}}
+        return {"lmstudio": {"connected": False, "model": effective.lmstudio_main_model}}
 
 
 @router.get("/settings/models")
 async def available_models(settings: Settings = Depends(get_settings)) -> dict[str, list[str]]:
     try:
-        return {"models": await LMStudioProvider(settings).models()}
+        return {"models": await LMStudioProvider(await runtime_settings(settings)).models()}
     except LLMUnavailable as error:
         raise HTTPException(status_code=503, detail="LM Studio is unavailable.") from error
 

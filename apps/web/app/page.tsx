@@ -26,6 +26,7 @@ type WordBox = { text: string; left: number; top: number; width: number; height:
 type DocumentPage = { page_number: number; text: string; blocks: { coordinate_space?: string; words?: WordBox[] } | null };
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+type PageTab = "inbox" | "settings";
 
 export default function Home() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -38,6 +39,7 @@ export default function Home() {
   const [resetConfirmation, setResetConfirmation] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<PageTab>("inbox");
 
   async function refresh(): Promise<void> {
     const response = await fetch(`${API}/api/v1/documents`);
@@ -95,8 +97,9 @@ export default function Home() {
     <header className="masthead">
       <div className="monogram" aria-hidden="true">730</div>
       <div><p className="eyebrow">HEALTHDOCS · ARCHIVIO LOCALE</p><h1>Inbox documenti</h1><p className="masthead-subtitle">Originali immutabili. Decisioni spiegabili. Una storia clinica leggibile.</p></div>
-      <nav aria-label="Navigazione principale" className="top-nav">Inbox · Medical Events · Insurance · 730 · Review · Family · Settings</nav>
+      <nav aria-label="Navigazione principale" className="top-nav"><button className={activeTab === "inbox" ? "active" : ""} onClick={() => setActiveTab("inbox")} type="button">Inbox operativa</button><button className={activeTab === "settings" ? "active" : ""} onClick={() => setActiveTab("settings")} type="button">Impostazioni</button></nav>
     </header>
+    {activeTab === "inbox" && <>
     <section className="upload-card">
       <div><p className="eyebrow">NUOVO DOCUMENTO</p><h2>Aggiungi al dossier</h2><p>{message}</p></div>
       <label className="upload-action" aria-busy={uploading}>
@@ -115,11 +118,14 @@ export default function Home() {
     <FamilyPanel />
     <Precompiled730Panel />
     <EventWorkspace onOpenDocument={id => { void selectDocument(id); }} />
+    </>}
+    {activeTab === "settings" && <>
     <LLMSettingsPanel />
     <section className="reset-zone" aria-labelledby="reset-title">
       <div><p className="eyebrow">ZONA RISERVATA</p><h2 id="reset-title">Azzera il dossier locale</h2><p>Elimina definitivamente tutti i dati del database: documenti, famiglia, eventi, estrazioni, review, cataloghi e audit. I file in <code>data/</code> non vengono rimossi.</p></div>
       <div className="reset-controls"><label>Digita <strong>RESET</strong> per abilitare il comando<input aria-label="Conferma reset database" value={resetConfirmation} onChange={event => setResetConfirmation(event.target.value)} placeholder="RESET" autoComplete="off" /></label><button className="reset-button" type="button" disabled={resetConfirmation !== "RESET" || resetting} onClick={() => void resetDatabase()}>{resetting ? "Azzeramento…" : "Azzera database"}</button></div>
       <p className="reset-feedback" aria-live="polite">{resetMessage}</p>
     </section>
+    </>}
   </main>;
 }

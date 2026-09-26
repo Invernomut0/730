@@ -127,7 +127,7 @@ chronology gates; it can create a proposed relationship but never override those
 gates. `LMSTUDIO_SIMPLE_MODEL` is reserved for one cheap, audited fallback:
 classifying a document which the deterministic rules leave as `UNKNOWN`.
 
-The **LLM e job locali** panel exposes non-secret runtime model routing for
+The dedicated **Impostazioni** tab exposes non-secret runtime model routing for
 document analysis, uncertain classification, extraction fallback, relationship
 matching, and local Rizzo Flow. **Stop tutti i job** pauses worker intake,
 removes queued ARQ work, and safely returns nonterminal documents to `STORED`.

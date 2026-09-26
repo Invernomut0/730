@@ -161,10 +161,12 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
                 "rizzo_flow_enabled": True,
                 "rizzo_flow_base_url": "http://localhost:8788",
             })
+            reloaded_settings = client.get("/api/v1/settings/llm")
             stopped = client.post("/api/v1/settings/jobs/stop")
             resumed = client.post("/api/v1/settings/jobs/resume")
         assert saved_settings.status_code == 200
         assert saved_settings.json()["relation_model"] == "relation-model"
+        assert reloaded_settings.json()["relation_model"] == "relation-model"
         assert stopped.json()["jobs_paused"] is True
         assert resumed.json()["jobs_paused"] is False
         database.refresh(prescription_document)

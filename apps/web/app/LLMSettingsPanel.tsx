@@ -10,6 +10,7 @@ type LLMSettings = {
   rizzo_flow_enabled: boolean;
   rizzo_flow_base_url: string | null;
 };
+type LLMSettingsResponse = LLMSettings & { jobs_paused: boolean };
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -21,13 +22,17 @@ export function LLMSettingsPanel(): ReactElement {
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
-    void Promise.all([fetch(`${API}/api/v1/settings/llm`), fetch(`${API}/api/v1/settings/models`)]).then(async ([settingsResponse, modelsResponse]) => {
-      if (settingsResponse.ok) {
-        const value = await settingsResponse.json() as LLMSettings & { jobs_paused: boolean };
-        setSettings(value); setPaused(value.jobs_paused);
+    void (async () => {
+      try {
+        const [settingsResponse, modelsResponse] = await Promise.all([fetch(`${API}/api/v1/settings/llm`), fetch(`${API}/api/v1/settings/models`)]);
+        if (!settingsResponse.ok) throw new Error("settings_unavailable");
+        const { jobs_paused, ...value } = await settingsResponse.json() as LLMSettingsResponse;
+        setSettings(value); setPaused(jobs_paused);
+        if (modelsResponse.ok) setModels((await modelsResponse.json() as { models: string[] }).models);
+      } catch {
+        setMessage("Impossibile caricare le impostazioni LLM locali.");
       }
-      if (modelsResponse.ok) setModels((await modelsResponse.json() as { models: string[] }).models);
-    });
+    })();
   }, []);
 
   function update(field: keyof LLMSettings, value: string | boolean): void {
@@ -37,11 +42,21 @@ export function LLMSettingsPanel(): ReactElement {
   async function save(): Promise<void> {
     if (!settings) return;
     setWorking(true);
-    const response = await fetch(`${API}/api/v1/settings/llm`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(settings) });
-    setWorking(false);
-    if (!response.ok) { setMessage("Impossibile salvare le impostazioni LLM."); return; }
-    setSettings(await response.json() as LLMSettings);
-    setMessage("Impostazioni LLM salvate: valgono per i prossimi job.");
+    try {
+      const response = await fetch(`${API}/api/v1/settings/llm`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(settings) });
+      if (!response.ok) {
+        const body = await response.json() as { detail?: string };
+        setMessage(body.detail ?? "Impossibile salvare le impostazioni LLM.");
+        return;
+      }
+      const { jobs_paused, ...value } = await response.json() as LLMSettingsResponse;
+      setSettings(value); setPaused(jobs_paused);
+      setMessage("Impostazioni LLM salvate: valgono per i prossimi job.");
+    } catch {
+      setMessage("Connessione non disponibile: le impostazioni non sono state salvate.");
+    } finally {
+      setWorking(false);
+    }
   }
 
   async function controlJobs(action: "stop" | "resume"): Promise<void> {
