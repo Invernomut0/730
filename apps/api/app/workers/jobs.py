@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import ClassVar
 from uuid import UUID
@@ -67,7 +68,7 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             db.commit()
             return
         document.state = DocumentState.EXTRACTING
-        document.analysis_started_at = document.analysis_started_at or datetime.now(UTC)
+        document.analysis_started_at = datetime.now(UTC)
         db.commit()
         path = settings.storage_root / document.storage_key
         generate_thumbnail(path, document.mime_type, thumbnail_path(settings.storage_root, document.sha256))
@@ -143,6 +144,19 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "text_extraction_failed"}))
             db.commit()
         raise
+    except asyncio.CancelledError:
+        db.rollback()
+        document = db.get(Document, UUID(document_id))
+        if document is not None and document.state in {
+            DocumentState.EXTRACTING,
+            DocumentState.OCR,
+            DocumentState.CLASSIFYING,
+            DocumentState.STRUCTURING,
+        }:
+            document.state = DocumentState.STORED
+            document.analysis_started_at = None
+            db.commit()
+        raise
     finally:
         db.close()
 
@@ -192,3 +206,6 @@ class WorkerSettings:
     cron_jobs: ClassVar[list[object]] = [cron(scan_watch_directory, second={0}), cron(sync_aifa_catalog, weekday=0, hour=3)]
     redis_settings: ClassVar[RedisSettings] = RedisSettings.from_dsn(get_settings().redis_url)
     max_jobs: ClassVar[int] = 4
+    # A job can call the small classifier, extractor, and large fallback in sequence.
+    # Keep ARQ alive beyond all configured HTTP attempts plus commit/queue overhead.
+    job_timeout: ClassVar[int] = get_settings().lmstudio_request_timeout_seconds * 3 + 60

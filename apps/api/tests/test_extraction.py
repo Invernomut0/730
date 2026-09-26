@@ -59,6 +59,11 @@ def test_worker_allows_four_concurrent_document_jobs() -> None:
     assert WorkerSettings.max_jobs == 4
 
 
+def test_worker_timeout_outlasts_all_local_model_attempts() -> None:
+    settings = Settings()
+    assert WorkerSettings.job_timeout == settings.lmstudio_request_timeout_seconds * 3 + 60
+
+
 def test_extractions_normalize_unambiguous_italian_dates() -> None:
     prescription = PrescriptionExtraction.model_validate({"document_date": "25/09/2026"})
     invoice = InvoiceExtraction.model_validate({"invoice_date": "25-09-2026"})

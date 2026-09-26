@@ -201,6 +201,13 @@ CONTROLLO - GASTROENTEROLOGIA` without treating them as a future request.
 
 `LMSTUDIO_REQUEST_TIMEOUT_SECONDS` defaults to `1800` (30 minutes), allowing
 large local models to complete long structured extractions without premature retry.
+The ARQ worker timeout covers the complete local pipeline (optional small-model
+classification, extraction, and fallback), rather than its five-minute default.
+If a worker is cancelled during an active phase, the document returns to
+`STORED` instead of remaining indefinitely in `STRUCTURING`; it can then be
+started again safely. Each resumed worker attempt receives a fresh analysis
+timestamp so the Inbox timebar describes the active attempt rather than a
+cancelled one.
 
 LM Studio reasoning models that leave the OpenAI JSON-schema `content` field
 empty are requested in text mode instead; the API then parses JSON only and
