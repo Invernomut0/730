@@ -466,9 +466,9 @@ def insurance_package(event_id: UUID, db: Session = Depends(get_db), settings: S
 
 @router.get("/review-tasks", response_model=list[ReviewResponse])
 def list_review_tasks(db: Session = Depends(get_db)) -> list[ReviewResponse]:
-    """Return open reviews after resolving legacy tasks for deleted documents."""
+    """Return open reviews after resolving obsolete or temporally impossible links."""
     document_ids = {str(document_id) for document_id in db.scalars(select(Document.id))}
-    obsolete_reviews: list[ReviewTask] = []
+    obsolete_reviews: list[tuple[ReviewTask, str]] = []
     for task in db.scalars(select(ReviewTask).where(ReviewTask.status == "OPEN", ReviewTask.entity_type == "Document")):
         candidate_id = task.context.get("candidate_document_id")
         deleted_source = str(task.entity_id) not in document_ids
@@ -476,12 +476,32 @@ def list_review_tasks(db: Session = Depends(get_db)) -> list[ReviewResponse]:
             not isinstance(candidate_id, str) or candidate_id not in document_ids
         )
         if deleted_source or deleted_candidate:
-            obsolete_reviews.append(task)
-    for task in obsolete_reviews:
+            obsolete_reviews.append((task, "documents_removed"))
+            continue
+        if task.type != ReviewType.LINK_AMBIGUOUS or not isinstance(candidate_id, str):
+            continue
+        source_document = db.get(Document, task.entity_id)
+        candidate_document = db.get(Document, UUID(candidate_id))
+        prescription_document, invoice_document = (
+            (source_document, candidate_document)
+            if source_document and source_document.document_type == DocumentType.PRESCRIPTION
+            else (candidate_document, source_document)
+        )
+        if not prescription_document or not invoice_document:
+            continue
+        prescription = db.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id))
+        expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id))
+        if prescription and expense and prescription.prescription_date and expense.invoice_date:
+            days = (expense.invoice_date - prescription.prescription_date).days
+            if days < 0:
+                obsolete_reviews.append((task, "invoice_before_prescription"))
+            elif days > 30:
+                obsolete_reviews.append((task, "invoice_outside_link_window"))
+    for task, reason in obsolete_reviews:
         task.status = "RESOLVED"
-        task.resolution = {"action": "documents_removed"}
+        task.resolution = {"action": reason}
         task.resolved_at = datetime.now(UTC)
-        record_audit(db, "review.resolved", "ReviewTask", task.id, {"reason": "documents_removed"})
+        record_audit(db, "review.resolved", "ReviewTask", task.id, {"reason": reason})
     if obsolete_reviews:
         db.commit()
     return [
@@ -510,9 +530,15 @@ def resolve_review_task(task_id: UUID, payload: ReviewResolution, db: Session = 
         )
         if prescription_document.document_type != DocumentType.PRESCRIPTION or invoice_document.document_type != DocumentType.INVOICE:
             raise HTTPException(status_code=422, detail="A link review must pair a prescription with an invoice.")
+        prescription = db.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id))
+        expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id))
+        if prescription and expense and prescription.prescription_date and expense.invoice_date:
+            days = (expense.invoice_date - prescription.prescription_date).days
+            if days < 0:
+                raise HTTPException(status_code=422, detail="An invoice dated before its prescription cannot be linked.")
+            if days > 30:
+                raise HTTPException(status_code=422, detail="An invoice outside the 30-day prescription window cannot be linked.")
         if db.scalar(select(DocumentLink).where(DocumentLink.source_document_id == prescription_document.id, DocumentLink.target_document_id == invoice_document.id)) is None:
-            prescription = db.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id))
-            expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id))
             evidence = task.context.get("evidence")
             conflicts = task.context.get("conflicts")
             score = task.context.get("score")

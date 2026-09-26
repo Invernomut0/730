@@ -39,10 +39,12 @@ def cluster_document(db: Session, document: Document, auto_confirm_threshold: fl
         if exists:
             continue
         candidate = score_prescription_invoice(source.patient_id, target.patient_id, source.prescription_date, target.invoice_date, _services(source.extraction, "requested_services"), _services(target.extraction, "services"))
-        if candidate.score >= auto_confirm_threshold and not candidate.conflicts:
+        if candidate.conflicts:
+            continue
+        if candidate.score >= auto_confirm_threshold:
             event = MedicalEvent(household_member_id=source.patient_id, title="Linked medical care", start_date=source.prescription_date, end_date=target.invoice_date, confidence=candidate.score)
             db.add(event)
             db.flush()
             db.add(DocumentLink(source_document_id=source.document_id, target_document_id=target.document_id, medical_event_id=event.id, relation_type="RELATED_TO", score=candidate.score, evidence=candidate.evidence, conflicts=candidate.conflicts))
-        elif candidate.score >= suggest_threshold or candidate.conflicts:
+        elif candidate.score >= suggest_threshold:
             db.add(ReviewTask(type=ReviewType.LINK_AMBIGUOUS, entity_type="Document", entity_id=document.id, context={"candidate_document_id": str(target.document_id if prescription else source.document_id), "score": candidate.score, "evidence": candidate.evidence, "conflicts": candidate.conflicts}))

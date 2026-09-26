@@ -36,7 +36,9 @@ def score_prescription_invoice(
             score += 0.15
             evidence.append(f"invoice_{days}_days_after_prescription")
         elif days < 0:
-            conflicts.append("invoice_before_prescription")
+            return LinkCandidate(0.0, evidence, ["invoice_before_prescription"])
+        else:
+            return LinkCandidate(0.0, evidence, ["invoice_outside_link_window"])
     wanted = " ".join(prescription_services).casefold()
     billed = " ".join(invoice_services).casefold()
     if wanted and billed and any(term in billed for term in wanted.split() if len(term) > 4):

@@ -135,6 +135,11 @@ suggestion as unrelated. Reviews are automatically resolved when either
 referenced document has been deleted, so the queue never presents an action that
 cannot be completed.
 
+Invoice-to-prescription links require a strict 0–30 day window: an invoice dated
+before its prescription or more than 30 days after it is excluded from matching,
+cannot be manually confirmed, and any legacy proposal is automatically archived
+with an audit event.
+
 Reviews for incomplete document classification are distinct from link reviews:
 they provide the single original for inspection and a **Riprova elaborazione**
 action. The retry clears obsolete OCR coordinates, requeues local extraction,
