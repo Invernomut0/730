@@ -1,3 +1,11 @@
+## Association decisions
+
+Each proposed medical event can be approved or rejected from the workspace. A
+rejection requires an explanation, is recorded in the audit trail, and retains
+the document pair as an operator-rejected link so it is not suggested again.
+**Rifai le proposte da zero** discards only unreviewed proposed associations and
+recomputes them from structured documents; confirmed associations and motivated
+rejections remain untouched.
 # HealthDocs 730
 
 Local-first web application for managing multi-year household health documents, insurance claims and Italian 730 tax preparation.

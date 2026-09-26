@@ -5,6 +5,7 @@ import "@xyflow/react/dist/style.css";
 import { type ReactElement, useEffect, useState } from "react";
 
 import { ManualDocumentCompletionPanel } from "./ManualDocumentCompletionPanel";
+import { AssociationControls } from "./AssociationControls";
 
 type EventSummary = { id: string; title: string; status: string; confidence: number };
 type Graph = { nodes: Array<{ id: string; type: string; label: string; status: string }>; edges: Array<{ id: string; source: string; target: string; type: string; confidence: number; evidence: string[]; conflicts: string[] }> };
@@ -51,6 +52,7 @@ export function EventWorkspace({ onOpenDocument }: { onOpenDocument: (documentId
 
   return <section className="panel">
     <div className="panel-title"><div><p className="eyebrow">RELAZIONI CLINICHE</p><h2>Medical Event workspace</h2></div><select aria-label="Seleziona evento" value={selectedId ?? ""} onChange={event => setSelectedId(event.target.value)}><option value="">Nessun evento</option>{events.map(event => <option key={event.id} value={event.id}>{event.title} · {Math.round(event.confidence * 100)}%</option>)}</select></div>
+    <AssociationControls event={events.find(event => event.id === selectedId)} onApproved={event => setEvents(current => current.map(item => item.id === event.id ? event : item))} onRejected={() => { setEvents(current => current.filter(event => event.id !== selectedId)); setSelectedId(undefined); setGraph(undefined); setEvaluation(undefined); }} onRebuilt={() => window.location.reload()} />
     {!selectedId ? <p className="muted">Un evento compare qui dopo un collegamento verificato tra prescrizione e fattura.</p> : <div className="workspace-grid">
       <aside className="workspace-aside"><strong>Documenti</strong><p>Le relazioni sono create solo con evidenze e senza conflitti maggiori.</p></aside>
       <div className="flow-canvas"><ReactFlow nodes={nodes} edges={edges} fitView onNodeClick={(_, node) => { const documentId = node.data.documentId; if (typeof documentId === "string") onOpenDocument(documentId); }}><Background /><Controls /></ReactFlow></div>

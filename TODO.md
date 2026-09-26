@@ -113,6 +113,7 @@
 - [x] Explain documented expense and reimbursement estimate separately
 - [x] Manual completion for unclassified document reviews
 - [x] Contextual draggable document viewer
+- [x] Approve, reject, and rebuild proposed associations
 - [x] Automatic normalization of local model bounding-box coordinates
 - [x] Actionable review queue and orphaned-review cleanup
 - [x] Responsive visual design system

@@ -94,6 +94,18 @@ async def test_prescription_invoice_vertical_slice_creates_event() -> None:
         assert evaluation.status_code == 200
         assert evaluation.json()["documented_amount"] == "180.00"
         assert evaluation.json()["estimated_eligible_amount"] == "144.00"
+        with TestClient(app) as client:
+            rejected = client.post(f"/api/v1/medical-events/{event.id}/association", json={"action": "reject", "reason": "Servizi clinici non corrispondenti"})
+            events = client.get("/api/v1/medical-events")
+            rebuilt = client.post("/api/v1/medical-events/rebuild-associations")
+        assert rejected.status_code == 200
+        assert rejected.json()["status"] == "ARCHIVED"
+        assert str(event.id) not in {item["id"] for item in events.json()}
+        assert rebuilt.status_code == 200
+        database.refresh(link)
+        assert link.relation_type == "REJECTED_BY_OPERATOR"
+        assert "operator_rejection_reason: Servizi clinici non corrispondenti" in link.evidence
+        assert database.scalar(select(DocumentLink).where(DocumentLink.source_document_id == prescription_document_id, DocumentLink.target_document_id == invoice_document_id, DocumentLink.relation_type != "REJECTED_BY_OPERATOR")) is None
         assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document.id)).patient_id == member.id
         assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document.id)).patient_id == member.id
     finally:

@@ -128,6 +128,11 @@ class ManualDocumentCompletion(BaseModel):
     provider_name: str | None = Field(default=None, max_length=255)
 
 
+class AssociationDecision(BaseModel):
+    action: Literal["approve", "reject"]
+    reason: str | None = Field(default=None, max_length=1000)
+
+
 class InsuranceResponse(BaseModel):
     category: str
     status: str

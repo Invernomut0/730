@@ -49,6 +49,7 @@ from app.schemas.api import (
     HouseholdResponse,
     InsuranceResponse,
     LoginRequest,
+    AssociationDecision,
     ManualDocumentCompletion,
     MedicalEventResponse,
     MemberCreate,
@@ -437,10 +438,49 @@ def medical_event_graph(event_id: UUID, db: Session = Depends(get_db)) -> EventG
 
 @router.get("/medical-events", response_model=list[MedicalEventResponse])
 def list_medical_events(db: Session = Depends(get_db)) -> list[MedicalEventResponse]:
-    events = list(db.scalars(select(MedicalEvent).order_by(MedicalEvent.created_at.desc())))
+    events = list(db.scalars(select(MedicalEvent).where(MedicalEvent.status != EventStatus.ARCHIVED).order_by(MedicalEvent.created_at.desc())))
     titles = {item.id: refresh_legacy_event_title(db, item) for item in events}
     db.commit()
     return [MedicalEventResponse(id=item.id, title=titles[item.id], status=item.status.value, confidence=item.confidence) for item in events]
+
+
+@router.post("/medical-events/{event_id}/association", response_model=MedicalEventResponse)
+def decide_medical_event_association(event_id: UUID, payload: AssociationDecision, db: Session = Depends(get_db)) -> MedicalEventResponse:
+    """Record an operator decision on a proposed association and retain rejected pairs as feedback."""
+    event = db.get(MedicalEvent, event_id)
+    if event is None or event.status == EventStatus.ARCHIVED:
+        raise HTTPException(status_code=404, detail="Active medical event not found.")
+    if payload.action == "approve":
+        event.status = EventStatus.CONFIRMED
+        record_audit(db, "association.approved", "MedicalEvent", event.id)
+    else:
+        reason = (payload.reason or "").strip()
+        if not reason:
+            raise HTTPException(status_code=422, detail="A rejection reason is required.")
+        for link in db.scalars(select(DocumentLink).where(DocumentLink.medical_event_id == event.id)):
+            link.relation_type = "REJECTED_BY_OPERATOR"
+            link.conflicts = [*link.conflicts, "operator_rejected"]
+            link.evidence = [*link.evidence, f"operator_rejection_reason: {reason}"]
+        event.status = EventStatus.ARCHIVED
+        record_audit(db, "association.rejected", "MedicalEvent", event.id, {"reason": reason})
+    db.commit()
+    return MedicalEventResponse(id=event.id, title=event.title, status=event.status.value, confidence=event.confidence)
+
+
+@router.post("/medical-events/rebuild-associations")
+def rebuild_proposed_associations(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> dict[str, int]:
+    """Discard only unreviewed proposals, then recompute links while preserving decisions and feedback."""
+    proposed_ids = list(db.scalars(select(MedicalEvent.id).where(MedicalEvent.status == EventStatus.PROPOSED)))
+    if proposed_ids:
+        db.execute(delete(DocumentLink).where(DocumentLink.medical_event_id.in_(proposed_ids)))
+        db.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(proposed_ids)))
+        db.flush()
+    structured_documents = list(db.scalars(select(Document).where(Document.document_type.in_([DocumentType.PRESCRIPTION, DocumentType.INVOICE]))))
+    for document in structured_documents:
+        cluster_document(db, document, settings.auto_confirm_threshold, settings.suggest_threshold)
+    record_audit(db, "association.rebuilt", "MedicalEvent", UUID(int=0), {"proposals_removed": len(proposed_ids)})
+    db.commit()
+    return {"proposals_removed": len(proposed_ids)}
 
 
 @router.get("/medical-events/{event_id}/insurance-evaluation", response_model=InsuranceResponse)
