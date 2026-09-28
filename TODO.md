@@ -154,6 +154,8 @@
 - [x] Small-model semantic screening before primary-model escalation
 - [x] One small-model relationship inventory per patient rebuild
 - [x] High-recall escalation for under-itemized invoices
+- [x] Coverage review candidate for every prescription
+- [x] Hard temporal integrity for prescription–invoice proposals
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

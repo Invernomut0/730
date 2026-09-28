@@ -34,9 +34,18 @@ primary large model with compact clinical context and no repeated raw extraction
 payload. Neither model can auto-confirm an association.
 
 For invoices whose billing text is generic or under-itemized—such as therapeutic
-injections—the small model is intentionally recall-oriented: it sends up to
-three clinically plausible `UNCERTAIN` candidates per invoice to the large
-model. Missing invoice detail is not treated as evidence against a relation.
+injections—the small model is intentionally recall-oriented: it selects an
+`UNCERTAIN` best candidate for each affected prescription. Missing invoice detail
+is not treated as evidence against a relation.
+
+The rebuild is coverage-oriented: for every prescription the small model selects
+one best available invoice candidate. If neither model can verify the episode,
+the pair remains a visible `COVERAGE_REVIEW` proposal for the operator; it is
+never automatically confirmed. Only the three most informative uncertain pairs
+are escalated to the large model in a rebuild.
+
+An invoice dated before its prescription is a hard temporal contradiction. Such
+pairs are never sent to either model and cannot be created as proposals.
 
 If an original file is missing from local storage, analysis and reanalysis do not
 queue a failing worker job. The document moves to a visible review with reason

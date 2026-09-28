@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,6 +12,11 @@ from app.adapters.lmstudio import LLMProvider
 from app.models.entities import AssociationFeedback, Document, DocumentLink, EventStatus, ExpenseDocument, MedicalEvent, Prescription
 
 LEGACY_RULE_REJECTION_REASON = "Proposta legacy basata su regole fisse: relazione dichiarata errata dall'operatore."
+
+
+def is_temporally_possible(prescription_date: date | None, invoice_date: date | None) -> bool:
+    """A billed service cannot precede the prescription that is meant to support it."""
+    return not (prescription_date and invoice_date and invoice_date < prescription_date)
 
 
 def _services(extraction: dict[str, object], key: str) -> list[str]:
@@ -73,12 +79,18 @@ async def cluster_document_with_relation_model(
         candidates = select(ExpenseDocument)
         if prescription.patient_id:
             candidates = candidates.where(ExpenseDocument.patient_id == prescription.patient_id)
-        pairs = [(prescription, item) for item in db.scalars(candidates)]
+        pairs = [
+            (prescription, item) for item in db.scalars(candidates)
+            if is_temporally_possible(prescription.prescription_date, item.invoice_date)
+        ]
     elif expense:
         candidates = select(Prescription)
         if expense.patient_id:
             candidates = candidates.where(Prescription.patient_id == expense.patient_id)
-        pairs = [(item, expense) for item in db.scalars(candidates)]
+        pairs = [
+            (item, expense) for item in db.scalars(candidates)
+            if is_temporally_possible(item.prescription_date, expense.invoice_date)
+        ]
     else:
         return
 
@@ -241,6 +253,8 @@ async def rebuild_relationships_with_model_routing(
         eligible: dict[tuple[str, str], tuple[Prescription, ExpenseDocument]] = {}
         for source in patient_prescriptions:
             for target in patient_invoices:
+                if not is_temporally_possible(source.prescription_date, target.invoice_date):
+                    continue
                 pair_feedback = next((
                     item for item in feedback
                     if item.source_document_id == source.document_id and item.target_document_id == target.document_id
@@ -261,13 +275,14 @@ async def rebuild_relationships_with_model_routing(
         selector_schema = _inventory_schema()
         inventory_prompt = (
             "You are a high-recall clinical association selector. Consider each possible prescription/invoice pair "
-            "for one patient from the complete structured document inventories. For every invoice, return all clearly "
-            "RELATED pairs plus up to three strongest clinically plausible UNCERTAIN candidates. A generic or "
-            "under-itemized invoice, such as an infusion or therapeutic injection, must yield UNCERTAIN candidates "
-            "when the patient has nearby prescriptions with a compatible clinical course, diagnosis, requested test, "
-            "or medication; missing invoice line detail is uncertainty, not evidence against a relationship. Omit a "
-            "pair only when its clinical context is clearly unrelated. Never label RELATED from date, patient, generic "
-            "wording, or provider alone. Legacy rule rejections are not vetoes.\n"
+            "for one patient from the complete structured document inventories. Return exactly one best invoice "
+            "candidate for every prescription_document_id. Use RELATED only when the clinical episode is directly "
+            "supported; otherwise use UNCERTAIN. An UNCERTAIN result is an operator-review candidate, not a claim "
+            "that care is the same. A generic or under-itemized invoice, such as an infusion or therapeutic injection, "
+            "must be selected as UNCERTAIN when it is the best available candidate for a prescription with compatible "
+            "clinical course, diagnosis, requested test, or medication; missing invoice line detail is uncertainty, not "
+            "evidence against a relationship. Never label RELATED from date, patient, generic wording, or provider alone. "
+            "Order the most clinically informative candidates first. Legacy rule rejections are not vetoes.\n"
             f"Prescriptions: {json.dumps([{'document_id': str(item.document_id), 'data': _relation_context(item, 'prescription', include_extraction=True)} for item in patient_prescriptions], ensure_ascii=False)}\n"
             f"Invoices: {json.dumps([{'document_id': str(item.document_id), 'data': _relation_context(item, 'invoice', include_extraction=True)} for item in patient_invoices], ensure_ascii=False)}\n"
             f"Previous operator decisions: {json.dumps(_feedback_examples(feedback, documents, patient_id), ensure_ascii=False)}"
@@ -276,23 +291,44 @@ async def rebuild_relationships_with_model_routing(
         matches = selection.get("matches")
         if not isinstance(matches, list):
             continue
-        uncertain: list[tuple[Prescription, ExpenseDocument]] = []
+        uncertain: list[tuple[Prescription, ExpenseDocument, float, str, str, list[str]]] = []
         selected_keys: set[tuple[str, str]] = set()
+        selected_prescriptions: set[str] = set()
         for match in matches:
             parsed = _parse_inventory_match(match, eligible, selected_keys)
             if parsed is None:
                 continue
             source, target, decision, confidence, reason, title, evidence = parsed
+            source_id = str(source.document_id)
+            if source_id in selected_prescriptions:
+                continue
             selected_keys.add((str(source.document_id), str(target.document_id)))
+            selected_prescriptions.add(source_id)
             if decision == "RELATED":
                 _create_event_and_link(
                     db, source, target, "SMALL_LLM_PROPOSED", EventStatus.PROPOSED,
                     confidence, [*evidence, f"small_model_reason: {reason}"], [], title,
                 )
             else:
-                uncertain.append((source, target))
+                uncertain.append((source, target, confidence, reason, title, evidence))
         if uncertain and screening_provider is not None:
-            await _resolve_uncertain_pairs_with_primary(db, uncertain, feedback, documents, patient_id, primary_provider)
+            await _resolve_uncertain_pairs_with_primary(
+                db,
+                [(source, target) for source, target, _confidence, _reason, _title, _evidence in uncertain[:3]],
+                feedback,
+                documents,
+                patient_id,
+                primary_provider,
+            )
+        for source, target, confidence, reason, title, evidence in uncertain:
+            if db.scalar(select(DocumentLink).where(
+                DocumentLink.source_document_id == source.document_id,
+                DocumentLink.target_document_id == target.document_id,
+            )) is None:
+                _create_event_and_link(
+                    db, source, target, "COVERAGE_REVIEW", EventStatus.PROPOSED,
+                    confidence, [*evidence, f"coverage_review_reason: {reason}"], [], title,
+                )
 
 
 async def _resolve_uncertain_pairs_with_primary(
@@ -501,6 +537,8 @@ def _create_event_and_link(
     conflicts: list[str],
     title: str,
 ) -> None:
+    if not is_temporally_possible(source.prescription_date, target.invoice_date):
+        return
     event = MedicalEvent(
         household_member_id=source.patient_id or target.patient_id,
         title=title,

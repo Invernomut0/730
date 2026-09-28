@@ -1,6 +1,6 @@
 [project]
 name = "healthdocs-api"
-version = "0.1.81"
+version = "0.1.83"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",

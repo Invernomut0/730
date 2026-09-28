@@ -41,9 +41,21 @@ escalated to the primary large model, which receives concise clinical fields
 rather than repeated raw extraction JSON.
 
 The selector is intentionally recall-oriented for generic or under-itemized
-invoices. It returns all clear matches and up to three clinically plausible
-`UNCERTAIN` candidates for each invoice; the primary model remains responsible
-for filtering uncertainty before a proposal is created.
+invoices. It returns one best `RELATED` or `UNCERTAIN` candidate for each
+prescription; the primary model remains responsible for filtering a small,
+clinically informative subset of uncertainty before a proposal is created.
+
+## Coverage review
+
+Each prescription must receive one best invoice candidate during a rebuild. If
+the selector has only incomplete evidence, or if the primary model does not
+verify an escalated candidate, the system stores a `COVERAGE_REVIEW` proposal.
+This preserves operator visibility without treating the link as confirmed. The
+primary model is capped at the first three most informative uncertain candidates
+per patient rebuild to keep the local workflow responsive.
+
+An invoice dated before the prescription is an integrity violation, not clinical
+uncertainty: the pair is excluded before model inference and cannot be persisted.
 
 ## Relations
 
