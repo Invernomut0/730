@@ -29,7 +29,7 @@ export function AssociationControls({ event, onApproved, onRejected, onRebuilt }
     setWorking(true);
     const response = await fetch(`${API}/api/v1/medical-events/rebuild-associations`, { method: "POST" });
     setWorking(false);
-    if (!response.ok) { setMessage("Impossibile ricostruire le associazioni."); return; }
+    if (!response.ok) { const body = await response.json() as { detail?: string }; setMessage(body.detail ?? "Impossibile ricostruire le associazioni."); return; }
     const result = await response.json() as { documents_rebuilt: number; relationships_created: number; review_tasks_created: number };
     setMessage(result.relationships_created || result.review_tasks_created
       ? `Ricostruite ${result.relationships_created} relazioni e create ${result.review_tasks_created} proposte di revisione da ${result.documents_rebuilt} estratti già presenti.`

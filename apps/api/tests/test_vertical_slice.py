@@ -12,6 +12,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models.entities import (
     AIExecution,
+    AssociationFeedback,
     ClinicalDocument,
     Document,
     DocumentLink,
@@ -23,7 +24,7 @@ from app.models.entities import (
     MedicalEvent,
     Prescription,
 )
-from app.services.eventing import cluster_document
+from app.services.eventing import cluster_document_with_relation_model
 from app.services.structuring import structure_document
 
 
@@ -64,7 +65,31 @@ class SyntheticLLMProvider:
         }
 
 
-def test_missing_invoice_item_lines_create_a_proposed_event() -> None:
+class SyntheticRelationProvider:
+    """Deterministic local relation-model fixture exercising the production schema."""
+
+    model_id = "synthetic-primary-relation-model"
+
+    def __init__(self, decision: str) -> None:
+        self.decision = decision
+        self.prompts: list[str] = []
+
+    async def models(self) -> list[str]:
+        return [self.model_id]
+
+    async def structured_completion(self, prompt: str, _schema: dict[str, Any]) -> dict[str, Any]:
+        self.prompts.append(prompt)
+        return {
+            "decision": self.decision,
+            "confidence": 0.96,
+            "event_title": "Prestazione verificata dal modello",
+            "reason": "Le evidenze cliniche non descrivono lo stesso episodio." if self.decision != "RELATED" else "Prestazione e fattura descrivono la stessa visita.",
+            "evidence": ["confronto clinico completo"],
+        }
+
+
+@pytest.mark.asyncio
+async def test_lab_prescription_and_infusion_invoice_are_rejected_by_primary_model() -> None:
     database = SessionLocal()
     household_id = member_id = prescription_document_id = invoice_document_id = None
     try:
@@ -109,20 +134,17 @@ def test_missing_invoice_item_lines_create_a_proposed_event() -> None:
         ))
         database.commit()
 
-        cluster_document(database, invoice_document, auto_confirm_threshold=0.95, suggest_threshold=0.75)
+        provider = SyntheticRelationProvider("NOT_RELATED")
+        await cluster_document_with_relation_model(database, invoice_document, provider)
         database.commit()
 
         link = database.scalar(select(DocumentLink).where(
             DocumentLink.source_document_id == prescription_document.id,
             DocumentLink.target_document_id == invoice_document.id,
         ))
-        assert link is not None
-        assert link.relation_type == "PATIENT_DATE_REVIEW"
-        assert "invoice_item_evidence_missing" in link.conflicts
-        event = database.get(MedicalEvent, link.medical_event_id)
-        assert event is not None
-        assert event.status.value == "PROPOSED"
-        assert event.title == "Ferritina"
+        assert link is None
+        assert provider.prompts and "ferritina" in provider.prompts[0].casefold()
+        assert "infusione terapeutica" in provider.prompts[0].casefold()
     finally:
         document_ids = [item for item in (prescription_document_id, invoice_document_id) if item]
         if document_ids:
@@ -171,18 +193,19 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         await structure_document(database, invoice_document, "Synthetic invoice", provider)
         prescription_document.state = DocumentState.COMPLETE
         invoice_document.state = DocumentState.STRUCTURING
-        cluster_document(database, invoice_document, auto_confirm_threshold=0.95, suggest_threshold=0.75)
+        relation_provider = SyntheticRelationProvider("RELATED")
+        await cluster_document_with_relation_model(database, invoice_document, relation_provider)
         database.commit()
 
         event = database.scalar(select(MedicalEvent).where(MedicalEvent.household_member_id == member.id))
         assert event is not None
-        assert event.title == "visita ortopedica"
+        assert event.title == "Prestazione verificata dal modello"
         event.title = "Linked medical care"
         database.commit()
-        assert event.confidence == pytest.approx(0.95)
+        assert event.confidence == pytest.approx(0.96)
         link = database.scalar(select(DocumentLink).where(DocumentLink.medical_event_id == event.id))
         assert link is not None
-        assert link.evidence == ["same_patient", "invoice_4_days_after_prescription", "service_matches_prescription"]
+        assert link.evidence == ["confronto clinico completo", "model_reason: Prestazione e fattura descrivono la stessa visita."]
         with TestClient(app) as client:
             graph = client.get(f"/api/v1/medical-events/{event.id}/graph")
         assert graph.status_code == 200
@@ -217,7 +240,13 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         async def create_local_queue(*_args: object, **_kwargs: object) -> LocalQueue:
             return LocalQueue()
 
+        class RoutedRelationProvider(SyntheticRelationProvider):
+            def __init__(self, _settings: object, model_id: str | None = None) -> None:
+                super().__init__("RELATED")
+                self.model_id = model_id or self.model_id
+
         monkeypatch.setattr("app.api.v1.router.create_pool", create_local_queue)
+        monkeypatch.setattr("app.api.v1.router.LMStudioProvider", RoutedRelationProvider)
         monkeypatch.setattr("app.services.runtime_settings.create_pool", create_local_queue)
         with TestClient(app) as client:
             approved = client.post(f"/api/v1/medical-events/{event.id}/association", json={"action": "approve"})
@@ -243,6 +272,11 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert rebuilt_link.medical_event_id != event.id
         assert database.scalar(select(Prescription).where(Prescription.document_id == prescription_document_id)) is not None
         assert database.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id)) is not None
+        assert database.scalar(select(AssociationFeedback).where(
+            AssociationFeedback.source_document_id == prescription_document_id,
+            AssociationFeedback.target_document_id == invoice_document_id,
+            AssociationFeedback.decision == "APPROVED",
+        )) is not None
         with TestClient(app) as client:
             service_added = client.post(
                 f"/api/v1/documents/{invoice_document_id}/invoice-services",
@@ -286,12 +320,18 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         assert prescription_document.analysis_started_at is not None
     finally:
         event_ids = select(MedicalEvent.id).where(MedicalEvent.household_member_id == member_id) if member_id else select(MedicalEvent.id).where(False)
-        database.execute(delete(DocumentLink).where(DocumentLink.source_document_id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))
+        document_ids = [item for item in (prescription_document_id, invoice_document_id) if item]
+        database.execute(delete(DocumentLink).where(
+            DocumentLink.source_document_id.in_(document_ids) | DocumentLink.target_document_id.in_(document_ids)
+        ))
+        database.execute(delete(AssociationFeedback).where(
+            AssociationFeedback.source_document_id.in_(document_ids) | AssociationFeedback.target_document_id.in_(document_ids)
+        ))
         database.execute(delete(AIExecution).where(AIExecution.document_id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))
         database.execute(delete(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id))
         database.execute(delete(Prescription).where(Prescription.document_id == prescription_document_id))
         database.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(event_ids)))
-        database.execute(delete(Document).where(Document.id.in_([item for item in (prescription_document_id, invoice_document_id) if item])))
+        database.execute(delete(Document).where(Document.id.in_(document_ids)))
         database.execute(delete(HouseholdMember).where(HouseholdMember.id == member_id))
         database.execute(delete(Household).where(Household.id == household_id))
         database.commit()

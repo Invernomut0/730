@@ -1,32 +1,34 @@
 # Document Linking and Medical Event Clustering
 
 ## Goal
-Infer relationships while prioritizing precision over recall.
 
-## Strong signals
-Exact patient identity, prescription/invoice reference, AIC/drug match, provider, explicit service and diagnosis/question match.
+The configured primary local LLM decides whether each prescription–invoice pair
+belongs to the same concrete clinical episode. It sees the complete structured
+extractions, including services, tests, drugs, providers, dates, and patient
+evidence. Patient identity is used only to keep retrieval private and bounded;
+it is not a relationship decision rule.
 
-## Supporting signals
-Temporal proximity, specialty, provider, treatment sequence and semantic similarity.
+## Model decisions
 
-## Conflicts
-Explicit different patient, impossible chronology, incompatible medicine/prescription or contradictory event.
+The relation model returns exactly one of:
 
-## Temporal policy
-Default previous-report/diagnosis lookback: 365 days. Category-specific rules may override. Time is evidence, not proof.
+- `RELATED`: create a `PROPOSED` event for operator review;
+- `NOT_RELATED`: do not create a relationship;
+- `UNCERTAIN`: do not create a relationship until richer evidence is available.
 
-## Initial scoring example
-- exact drug/AIC +0.35
-- clinical patient match +0.30
-- compatible date +0.15
-- diagnosis/event compatibility +0.15
-- semantic similarity +0.05
-- explicit different patient -1.00
+There are no lexical weights, date windows, thresholds, or deterministic
+clinical-match scores. The model is specifically instructed that shared dates,
+generic labels, a provider, or a patient alone never justify a link.
 
-Weights are versioned configuration.
+## Operator learning
 
-## Thresholds
-Auto-confirm >= 0.95 with no major conflict; suggest >= 0.75; otherwise review.
+An approval stores `APPROVED` feedback and is recreated as `USER_CONFIRMED` on
+later rebuilds. A rejection stores `REJECTED` feedback and suppresses that exact
+pair permanently. Recent same-patient decisions and rejection reasons are fed
+back to the local relation model as private few-shot context for later pairs.
 
 ## Relations
-BELONGS_TO_PATIENT, PAID_BY, PRESCRIBES, DIAGNOSES, REPORTS, BILLS, PURCHASES, MEDICATION_FOR, PAYMENT_FOR, PART_OF_EVENT, SUBMITTED_IN, REIMBURSES, TAX_ALLOCATED_TO, RELATED_TO.
+
+The current automatic relation types are `LLM_PROPOSED` and `USER_CONFIRMED`.
+Other graph edges remain available for downstream insurance, reimbursement, and
+tax workflows.

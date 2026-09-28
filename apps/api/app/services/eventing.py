@@ -1,4 +1,4 @@
-"""Create proposed medical events from safe prescription/invoice links."""
+"""Create medical-event proposals through the configured primary relation LLM."""
 
 from __future__ import annotations
 
@@ -8,8 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.adapters.lmstudio import LLMProvider
-from app.models.entities import Document, DocumentLink, EventStatus, ExpenseDocument, MedicalEvent, Prescription, ReviewTask, ReviewType
-from app.services.linking import is_patient_date_review_candidate, score_prescription_invoice
+from app.models.entities import AssociationFeedback, Document, DocumentLink, EventStatus, ExpenseDocument, MedicalEvent, Prescription
 
 
 def _services(extraction: dict[str, object], key: str) -> list[str]:
@@ -33,22 +32,6 @@ def _evidence_values(extraction: dict[str, object], key: str) -> list[str]:
     return [value["value"] for value in values if isinstance(value, dict) and isinstance(value.get("value"), str)]
 
 
-def _link_candidate(source: Prescription, target: ExpenseDocument):
-    """Build one safety-first candidate from services and itemized clinical evidence."""
-    return score_prescription_invoice(
-        source.patient_id,
-        target.patient_id,
-        source.prescription_date,
-        target.invoice_date,
-        _services(source.extraction, "requested_services"),
-        _services(target.extraction, "services"),
-        _evidence_values(source.extraction, "prescribed_drugs"),
-        _evidence_values(source.extraction, "requested_lab_tests"),
-        _evidence_values(target.extraction, "billed_drugs"),
-        _evidence_values(target.extraction, "billed_lab_tests"),
-    )
-
-
 def medical_event_title(prescription: Prescription, invoice: ExpenseDocument) -> str:
     """Create a concise, human-readable event title from extracted clinical services."""
     services = (
@@ -58,15 +41,6 @@ def medical_event_title(prescription: Prescription, invoice: ExpenseDocument) ->
         or _services(invoice.extraction, "services")
     )
     return services[0][:220] if services else "Prestazione sanitaria collegata"
-
-
-def _invoice_lacks_requested_item_evidence(source: Prescription, target: ExpenseDocument) -> bool:
-    """Recognize absent invoice detail without treating it as contradictory clinical evidence."""
-    prescribed_drugs = _evidence_values(source.extraction, "prescribed_drugs")
-    requested_lab_tests = _evidence_values(source.extraction, "requested_lab_tests")
-    billed_drugs = _evidence_values(target.extraction, "billed_drugs")
-    billed_lab_tests = _evidence_values(target.extraction, "billed_lab_tests")
-    return (bool(prescribed_drugs) and not billed_drugs) or (bool(requested_lab_tests) and not billed_lab_tests)
 
 
 def refresh_legacy_event_title(db: Session, event: MedicalEvent) -> str:
@@ -84,121 +58,161 @@ def refresh_legacy_event_title(db: Session, event: MedicalEvent) -> str:
     return event.title
 
 
-def cluster_document(db: Session, document: Document, auto_confirm_threshold: float, suggest_threshold: float) -> None:
-    """Link one newly structured document to compatible opposite-type documents exactly once."""
-    prescription = db.scalar(select(Prescription).where(Prescription.document_id == document.id))
-    expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == document.id))
-    if prescription:
-        pairs = [(prescription, item) for item in db.scalars(select(ExpenseDocument))]
-    elif expense:
-        pairs = [(item, expense) for item in db.scalars(select(Prescription))]
-    else:
-        return
-    for source, target in pairs:
-        if source.document_id == target.document_id:
-            continue
-        exists = db.scalar(select(DocumentLink).where(DocumentLink.source_document_id == source.document_id, DocumentLink.target_document_id == target.document_id))
-        if exists:
-            continue
-        candidate = _link_candidate(source, target)
-        missing_invoice_item_evidence = _invoice_lacks_requested_item_evidence(source, target)
-        can_propose_for_missing_invoice_items = (
-            is_patient_date_review_candidate(candidate) and missing_invoice_item_evidence
-        )
-        if candidate.conflicts and not can_propose_for_missing_invoice_items:
-            continue
-        if candidate.score >= auto_confirm_threshold:
-            event = MedicalEvent(household_member_id=source.patient_id, title=medical_event_title(source, target), start_date=source.prescription_date, end_date=target.invoice_date, confidence=candidate.score)
-            db.add(event)
-            db.flush()
-            db.add(DocumentLink(source_document_id=source.document_id, target_document_id=target.document_id, medical_event_id=event.id, relation_type="RELATED_TO", score=candidate.score, evidence=candidate.evidence, conflicts=candidate.conflicts))
-        elif candidate.score >= suggest_threshold:
-            db.add(ReviewTask(type=ReviewType.LINK_AMBIGUOUS, entity_type="Document", entity_id=document.id, context={"candidate_document_id": str(target.document_id if prescription else source.document_id), "score": candidate.score, "evidence": candidate.evidence, "conflicts": candidate.conflicts}))
-        elif can_propose_for_missing_invoice_items:
-            event = MedicalEvent(
-                household_member_id=source.patient_id,
-                title=medical_event_title(source, target),
-                start_date=source.prescription_date,
-                end_date=target.invoice_date,
-                status=EventStatus.PROPOSED,
-                confidence=candidate.score,
-            )
-            db.add(event)
-            db.flush()
-            db.add(DocumentLink(
-                source_document_id=source.document_id,
-                target_document_id=target.document_id,
-                medical_event_id=event.id,
-                relation_type="PATIENT_DATE_REVIEW",
-                score=candidate.score,
-                evidence=[*candidate.evidence, "patient_date_match_requires_review"],
-                conflicts=[*candidate.conflicts, "invoice_item_evidence_missing"],
-            ))
-
-
 async def cluster_document_with_relation_model(
     db: Session,
     document: Document,
     provider: LLMProvider,
-    suggest_threshold: float,
 ) -> None:
-    """Ask the designated large local model only about candidate pairs that pass hard safety gates."""
+    """Ask the primary local model to decide every prescription/invoice pair."""
     prescription = db.scalar(select(Prescription).where(Prescription.document_id == document.id))
     expense = db.scalar(select(ExpenseDocument).where(ExpenseDocument.document_id == document.id))
     if prescription:
-        pairs = [(prescription, item) for item in db.scalars(select(ExpenseDocument))]
+        candidates = select(ExpenseDocument)
+        if prescription.patient_id:
+            candidates = candidates.where(ExpenseDocument.patient_id == prescription.patient_id)
+        pairs = [(prescription, item) for item in db.scalars(candidates)]
     elif expense:
-        pairs = [(item, expense) for item in db.scalars(select(Prescription))]
+        candidates = select(Prescription)
+        if expense.patient_id:
+            candidates = candidates.where(Prescription.patient_id == expense.patient_id)
+        pairs = [(item, expense) for item in db.scalars(candidates)]
     else:
         return
 
     schema = {
         "type": "object",
         "properties": {
-            "related": {"type": "boolean"},
+            "decision": {"type": "string", "enum": ["RELATED", "NOT_RELATED", "UNCERTAIN"]},
             "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-            "reason": {"type": "string", "maxLength": 500},
+            "event_title": {"type": "string", "maxLength": 255},
+            "reason": {"type": "string", "maxLength": 1000},
+            "evidence": {"type": "array", "items": {"type": "string", "maxLength": 300}, "maxItems": 8},
         },
-        "required": ["related", "confidence", "reason"],
+        "required": ["decision", "confidence", "event_title", "reason", "evidence"],
         "additionalProperties": False,
     }
+    all_feedback = list(db.scalars(select(AssociationFeedback).order_by(AssociationFeedback.created_at.desc())))
+    documents = {item.id: item for item in db.scalars(select(Document))}
     for source, target in pairs:
         if db.scalar(select(DocumentLink).where(DocumentLink.source_document_id == source.document_id, DocumentLink.target_document_id == target.document_id)):
             continue
-        candidate = _link_candidate(source, target)
-        if candidate.conflicts or not candidate.evidence:
+        pair_feedback = next(
+            (
+                feedback for feedback in all_feedback
+                if feedback.source_document_id == source.document_id and feedback.target_document_id == target.document_id
+            ),
+            None,
+        )
+        if pair_feedback and pair_feedback.decision == "REJECTED":
             continue
+        if pair_feedback and pair_feedback.decision == "APPROVED":
+            _create_event_and_link(
+                db, source, target, "USER_CONFIRMED", EventStatus.CONFIRMED, 1.0,
+                ["operator_confirmed_association"], [], medical_event_title(source, target),
+            )
+            continue
+        feedback_examples = _feedback_examples(all_feedback, documents, source.patient_id)
         prompt = (
-            "Decide whether a prescription and an invoice describe the same health service. "
-            "The patient and chronology have already passed deterministic safety checks. "
-            "Return related=false when the services are not the same or evidence is insufficient.\n"
-            f"Prescription date: {source.prescription_date}; requested services: {json.dumps(_services(source.extraction, 'requested_services'), ensure_ascii=False)}; prescribed drugs: {json.dumps(_evidence_values(source.extraction, 'prescribed_drugs'), ensure_ascii=False)}; requested lab tests: {json.dumps(_evidence_values(source.extraction, 'requested_lab_tests'), ensure_ascii=False)}\n"
-            f"Invoice date: {target.invoice_date}; billed services: {json.dumps(_services(target.extraction, 'services'), ensure_ascii=False)}; billed drugs: {json.dumps(_evidence_values(target.extraction, 'billed_drugs'), ensure_ascii=False)}; billed lab tests: {json.dumps(_evidence_values(target.extraction, 'billed_lab_tests'), ensure_ascii=False)}"
+            "You are the primary clinical relationship arbiter for local health documents. Decide whether the "
+            "prescription and invoice belong to the same concrete episode of care. Compare clinical intent, "
+            "requested tests or drugs, billed services, provider, patient evidence, and chronology together. "
+            "Dates, the same patient, generic wording, or a shared provider are never sufficient on their own. "
+            "Do not relate a laboratory-test prescription to an infusion, medicine administration, or unrelated "
+            "service unless document evidence explicitly connects them. Return RELATED only for a supported "
+            "clinical relationship; use NOT_RELATED when evidence contradicts it and UNCERTAIN when it is incomplete.\n"
+            f"Prescription: {json.dumps(_relation_context(source, 'prescription'), ensure_ascii=False)}\n"
+            f"Invoice: {json.dumps(_relation_context(target, 'invoice'), ensure_ascii=False)}\n"
+            f"Previous operator decisions for this patient: {json.dumps(feedback_examples, ensure_ascii=False)}"
         )
         decision = await provider.structured_completion(prompt, schema)
-        related = decision.get("related") is True
+        relation_decision = decision.get("decision")
         confidence = decision.get("confidence")
         reason = decision.get("reason")
-        if not related or not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not isinstance(reason, str):
+        title = decision.get("event_title")
+        evidence = decision.get("evidence")
+        if (
+            relation_decision != "RELATED" or not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool) or not isinstance(reason, str) or not isinstance(title, str)
+            or not title.strip() or not isinstance(evidence, list) or not all(isinstance(item, str) for item in evidence)
+        ):
             continue
-        score = min(1.0, candidate.score + 0.5 * float(confidence))
-        if score < suggest_threshold:
-            continue
-        event = MedicalEvent(
-            household_member_id=source.patient_id,
-            title=medical_event_title(source, target),
-            start_date=source.prescription_date,
-            end_date=target.invoice_date,
-            confidence=score,
+        _create_event_and_link(
+            db, source, target, "LLM_PROPOSED", EventStatus.PROPOSED, min(1.0, max(0.0, float(confidence))),
+            [*evidence[:8], f"model_reason: {reason[:1000]}"], [], title.strip()[:255],
         )
-        db.add(event)
-        db.flush()
-        db.add(DocumentLink(
-            source_document_id=source.document_id,
-            target_document_id=target.document_id,
-            medical_event_id=event.id,
-            relation_type="LLM_RELATED_TO",
-            score=score,
-            evidence=[*candidate.evidence, "large_model_relation_match", f"large_model_reason: {reason[:500]}"],
-            conflicts=candidate.conflicts,
-        ))
+
+
+def _relation_context(document: Prescription | ExpenseDocument, kind: str) -> dict[str, object]:
+    """Give the model complete extracted facts, not rule-derived scores or labels."""
+    if kind == "prescription":
+        return {
+            "patient_id": str(document.patient_id) if document.patient_id else None,
+            "date": str(document.prescription_date) if document.prescription_date else None,
+            "provider": document.provider,
+            "requested_services": _services(document.extraction, "requested_services"),
+            "prescribed_drugs": _evidence_values(document.extraction, "prescribed_drugs"),
+            "requested_lab_tests": _evidence_values(document.extraction, "requested_lab_tests"),
+            "extraction": document.extraction,
+        }
+    return {
+        "patient_id": str(document.patient_id) if document.patient_id else None,
+        "date": str(document.invoice_date) if document.invoice_date else None,
+        "provider": document.provider_name,
+        "services": _services(document.extraction, "services"),
+        "billed_drugs": _evidence_values(document.extraction, "billed_drugs"),
+        "billed_lab_tests": _evidence_values(document.extraction, "billed_lab_tests"),
+        "extraction": document.extraction,
+    }
+
+
+def _feedback_examples(
+    feedback: list[AssociationFeedback], documents: dict[object, Document], patient_id: object | None
+) -> list[dict[str, object]]:
+    """Provide recent same-patient corrections as local few-shot guidance to the LLM."""
+    examples: list[dict[str, object]] = []
+    for item in feedback:
+        source = documents.get(item.source_document_id)
+        target = documents.get(item.target_document_id)
+        if not source or not target or patient_id is None or source.patient_id != patient_id:
+            continue
+        examples.append({
+            "decision": item.decision,
+            "reason": item.reason,
+            "prescription": source.logical_name or source.original_filename,
+            "invoice": target.logical_name or target.original_filename,
+        })
+        if len(examples) == 12:
+            break
+    return examples
+
+
+def _create_event_and_link(
+    db: Session,
+    source: Prescription,
+    target: ExpenseDocument,
+    relation_type: str,
+    status: EventStatus,
+    confidence: float,
+    evidence: list[str],
+    conflicts: list[str],
+    title: str,
+) -> None:
+    event = MedicalEvent(
+        household_member_id=source.patient_id or target.patient_id,
+        title=title,
+        start_date=source.prescription_date,
+        end_date=target.invoice_date,
+        status=status,
+        confidence=confidence,
+    )
+    db.add(event)
+    db.flush()
+    db.add(DocumentLink(
+        source_document_id=source.document_id,
+        target_document_id=target.document_id,
+        medical_event_id=event.id,
+        relation_type=relation_type,
+        score=confidence,
+        evidence=evidence,
+        conflicts=conflicts,
+    ))

@@ -46,8 +46,6 @@ class Settings(BaseSettings):
     rizzo_flow_base_url: HttpUrl | None = None
 
     medical_event_lookback_days: int = Field(default=365, gt=0)
-    auto_confirm_threshold: float = Field(default=0.95, ge=0, le=1)
-    suggest_threshold: float = Field(default=0.75, ge=0, le=1)
     aifa_update_interval_days: int = Field(default=7, gt=0)
     aifa_catalog_path: Path = Path("/data/aifa/catalog.csv")
 

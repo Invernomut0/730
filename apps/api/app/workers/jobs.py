@@ -25,7 +25,7 @@ from app.services.extraction import (
     extract_with_ocr,
     text_is_insufficient,
 )
-from app.services.eventing import cluster_document, cluster_document_with_relation_model
+from app.services.eventing import cluster_document_with_relation_model
 from app.services.ingestion import archive_inbox_file, ingest_content
 from app.services.storage import UnsupportedDocument
 from app.services.structuring import structure_document
@@ -116,19 +116,13 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
                 document.state = DocumentState.REVIEW_REQUIRED
                 db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "structured_extraction_unavailable_or_invalid"}))
         if document.state == DocumentState.COMPLETE:
-            cluster_document(
-                db,
-                document,
-                settings.auto_confirm_threshold,
-                settings.suggest_threshold,
-            )
-            if settings.lmstudio_relation_model:
+            relation_model = settings.lmstudio_relation_model or settings.lmstudio_main_model
+            if relation_model:
                 try:
                     await cluster_document_with_relation_model(
                         db,
                         document,
-                        LMStudioProvider(settings, settings.lmstudio_relation_model),
-                        settings.suggest_threshold,
+                        LMStudioProvider(settings, relation_model),
                     )
                 except LLMUnavailable:
                     pass

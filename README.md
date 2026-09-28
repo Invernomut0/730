@@ -10,22 +10,16 @@ link review, then rebuilds proposals from the persisted prescription/invoice
 structured data—regardless of a stale document pipeline state. It never deletes
 extracted records, pages, document metadata, or original files, and it never
 queues OCR or document extraction. The result reports created links and review
-proposals; when neither can be created, it explicitly confirms that no safe
-match had sufficient patient/date/service evidence. A database uniqueness
-constraint on each prescription/invoice document pair prevents duplicate links.
-When patient and invoice date are within the strict 0–30 day chronology but the
-invoice service is absent or insufficient to prove a clinical-service match, the
-rebuild creates a visible `PROPOSED` event marked `PATIENT_DATE_REVIEW`. It never
-auto-confirms this weaker association; the operator must approve or reject it
-from the workspace. The invoice viewer also provides **Aggiungi prestazione
-fattura** to append operator-verified service evidence and immediately recalculate
-only that invoice's links, without deleting or rerunning its extraction.
-When a prescription lists medicines or laboratory tests but the compatible
-invoice has no corresponding billed-item lines at all, the same review proposal
-is retained with `invoice_item_evidence_missing`; absent invoice detail is not
-misrepresented as a clinical contradiction. Its confidence retains the verified
-patient/date evidence ($0.45$); a populated but mismatching billed-item list
-remains blocked at zero confidence.
+proposals; when no model-supported relationship exists, it explicitly confirms
+that no event was created. A database uniqueness constraint on each
+prescription/invoice document pair prevents duplicate links. The invoice viewer
+also provides **Aggiungi prestazione fattura** to append operator-verified service
+evidence and immediately ask the primary model to reassess only that invoice's
+links, without deleting or rerunning its extraction.
+
+### LLM relationship decisions and operator learning
+
+The configured primary local relationship model decides every prescription–invoice pair from the full structured clinical context. There are no automatic lexical scores, date windows, or threshold rules that can create an event. It returns `RELATED`, `NOT_RELATED`, or `UNCERTAIN`; only `RELATED` creates an operator-reviewable proposal. A user approval or rejection is stored locally: it is authoritative for that exact pair and recent same-patient corrections, including the rejection reason, are supplied to the model as private few-shot guidance on later decisions and rebuilds.
 
 When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
 **Avvia analisi documenti** above the Inbox. It queues each non-duplicate

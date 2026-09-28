@@ -318,6 +318,22 @@ class DocumentLink(Timestamped, Base):
     conflicts: Mapped[list[str]] = mapped_column(JSON, default=list)
 
 
+class AssociationFeedback(Timestamped, Base):
+    """An operator decision that must guide future LLM relationship decisions."""
+
+    __tablename__ = "association_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    source_document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    target_document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    decision: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class ReviewTask(Timestamped, Base):
     __tablename__ = "review_tasks"
 
