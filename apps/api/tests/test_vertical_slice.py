@@ -28,7 +28,7 @@ from app.models.entities import (
     ReviewTask,
     ReviewType,
 )
-from app.services.eventing import cluster_document_with_relation_model
+from app.services.eventing import LEGACY_RULE_REJECTION_REASON, cluster_document_with_relation_model
 from app.services.structuring import structure_document
 from app.workers.jobs import process_document
 
@@ -85,11 +85,14 @@ class SyntheticRelationProvider:
     async def structured_completion(self, prompt: str, _schema: dict[str, Any]) -> dict[str, Any]:
         self.prompts.append(prompt)
         return {
-            "decision": self.decision,
-            "confidence": 0.96,
-            "event_title": "Prestazione verificata dal modello",
-            "reason": "Le evidenze cliniche non descrivono lo stesso episodio." if self.decision != "RELATED" else "Prestazione e fattura descrivono la stessa visita.",
-            "evidence": ["confronto clinico completo"],
+            "decisions": [{
+                "candidate_index": 0,
+                "decision": self.decision,
+                "confidence": 0.96,
+                "event_title": "Prestazione verificata dal modello",
+                "reason": "Le evidenze cliniche non descrivono lo stesso episodio." if self.decision != "RELATED" else "Prestazione e fattura descrivono la stessa visita.",
+                "evidence": ["confronto clinico completo"],
+            }],
         }
 
 
@@ -137,10 +140,17 @@ async def test_lab_prescription_and_infusion_invoice_are_rejected_by_primary_mod
             invoice_date=date(2026, 3, 13),
             extraction={"services": [{"description": {"value": "Infusione terapeutica"}}], "billed_lab_tests": [], "billed_drugs": []},
         ))
+        database.add(AssociationFeedback(
+            source_document_id=prescription_document.id,
+            target_document_id=invoice_document.id,
+            decision="REJECTED",
+            reason=LEGACY_RULE_REJECTION_REASON,
+        ))
         database.commit()
 
+        screening_provider = SyntheticRelationProvider("NOT_RELATED")
         provider = SyntheticRelationProvider("NOT_RELATED")
-        await cluster_document_with_relation_model(database, invoice_document, provider)
+        await cluster_document_with_relation_model(database, invoice_document, provider, screening_provider)
         database.commit()
 
         link = database.scalar(select(DocumentLink).where(
@@ -148,8 +158,9 @@ async def test_lab_prescription_and_infusion_invoice_are_rejected_by_primary_mod
             DocumentLink.target_document_id == invoice_document.id,
         ))
         assert link is None
-        assert provider.prompts and "ferritina" in provider.prompts[0].casefold()
-        assert "infusione terapeutica" in provider.prompts[0].casefold()
+        assert screening_provider.prompts and "ferritina" in screening_provider.prompts[0].casefold()
+        assert "infusione terapeutica" in screening_provider.prompts[0].casefold()
+        assert '"legacy_rule_rejection": true' in screening_provider.prompts[0]
     finally:
         document_ids = [item for item in (prescription_document_id, invoice_document_id) if item]
         if document_ids:
@@ -159,6 +170,9 @@ async def test_lab_prescription_and_infusion_invoice_are_rejected_by_primary_mod
             )))
             database.execute(delete(DocumentLink).where(
                 DocumentLink.source_document_id.in_(document_ids) | DocumentLink.target_document_id.in_(document_ids)
+            ))
+            database.execute(delete(AssociationFeedback).where(
+                AssociationFeedback.source_document_id.in_(document_ids) | AssociationFeedback.target_document_id.in_(document_ids)
             ))
             database.execute(delete(Prescription).where(Prescription.document_id == prescription_document_id))
             database.execute(delete(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id))
@@ -205,9 +219,15 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         await structure_document(database, invoice_document, "Synthetic invoice", provider)
         prescription_document.state = DocumentState.COMPLETE
         invoice_document.state = DocumentState.STRUCTURING
+        screening_provider = SyntheticRelationProvider("UNCERTAIN")
         relation_provider = SyntheticRelationProvider("RELATED")
-        await cluster_document_with_relation_model(database, invoice_document, relation_provider)
+        await cluster_document_with_relation_model(database, invoice_document, relation_provider, screening_provider)
         database.commit()
+
+        assert screening_provider.prompts
+        assert relation_provider.prompts
+        assert "full_extraction" in screening_provider.prompts[0]
+        assert "full_extraction" not in relation_provider.prompts[0]
 
         event = database.scalar(select(MedicalEvent).where(MedicalEvent.household_member_id == member.id))
         assert event is not None
@@ -256,6 +276,9 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
             def __init__(self, _settings: object, model_id: str | None = None) -> None:
                 super().__init__("RELATED")
                 self.model_id = model_id or self.model_id
+
+            async def models(self) -> list[str]:
+                return [self.model_id, "qwen/qwen3-vl-8b"]
 
         monkeypatch.setattr("app.api.v1.router.create_pool", create_local_queue)
         monkeypatch.setattr("app.api.v1.router.LMStudioProvider", RoutedRelationProvider)

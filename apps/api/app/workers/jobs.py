@@ -133,12 +133,14 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
                 db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "structured_extraction_unavailable_or_invalid"}))
         if document.state == DocumentState.COMPLETE:
             relation_model = settings.lmstudio_relation_model or settings.lmstudio_main_model
+            screening_model = settings.lmstudio_simple_model
             if relation_model:
                 try:
                     await cluster_document_with_relation_model(
                         db,
                         document,
                         LMStudioProvider(settings, relation_model),
+                        LMStudioProvider(settings, screening_model) if screening_model and screening_model != relation_model else None,
                     )
                 except LLMUnavailable:
                     pass

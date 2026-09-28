@@ -21,6 +21,18 @@ links, without deleting or rerunning its extraction.
 
 The configured primary local relationship model decides every prescription–invoice pair from the full structured clinical context. There are no automatic lexical scores, date windows, or threshold rules that can create an event. It returns `RELATED`, `NOT_RELATED`, or `UNCERTAIN`; only `RELATED` creates an operator-reviewable proposal. A user approval or rejection is stored locally: it is authoritative for that exact pair and recent same-patient corrections, including the rejection reason, are supplied to the model as private few-shot guidance on later decisions and rebuilds.
 
+Rebuilds submit the eligible pairs in one structured batch per document, rather
+than one HTTP request per pair. Rejections imported from the retired
+rule-based engine are intentionally not hard vetoes: the LLM reassesses them
+from their clinical facts while treating the legacy rejection as weak context.
+
+For fast rebuilds, the configured small local model receives one complete
+prescription/invoice JSON inventory per patient, once—not a repeated Cartesian
+product of documents. It returns only plausible or uncertain pairs. Plausible
+pairs become reviewable proposals; only `UNCERTAIN` pairs are sent to the
+primary large model with compact clinical context and no repeated raw extraction
+payload. Neither model can auto-confirm an association.
+
 If an original file is missing from local storage, analysis and reanalysis do not
 queue a failing worker job. The document moves to a visible review with reason
 `original_file_missing`; restore the original before retrying.

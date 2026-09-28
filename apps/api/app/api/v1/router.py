@@ -85,7 +85,7 @@ from app.services.precompiled_730 import import_csv, reconcile
 from app.services.pharmacy import add_receipt_line, allocate_receipt, import_aifa_csv, match_receipt_lines
 from app.services.database_reset import reset_application_database
 from app.services.deletion import delete_document_group, delete_household
-from app.services.eventing import cluster_document_with_relation_model, medical_event_title, refresh_legacy_event_title
+from app.services.eventing import cluster_document_with_relation_model, medical_event_title, rebuild_relationships_with_model_routing, refresh_legacy_event_title
 from app.services.runtime_settings import jobs_paused, runtime_settings, save_runtime_llm_settings, set_jobs_paused
 
 router = APIRouter(prefix="/api/v1")
@@ -200,6 +200,13 @@ def relation_provider(settings: Settings) -> LMStudioProvider:
     if not model_id:
         raise HTTPException(status_code=503, detail="No primary relationship model is configured.")
     return LMStudioProvider(settings, model_id)
+
+
+def relation_screening_provider(settings: Settings) -> LMStudioProvider | None:
+    """Return the fast local model used only to select pairs for the primary arbiter."""
+    if not settings.lmstudio_simple_model or settings.lmstudio_simple_model == relation_provider(settings).model_id:
+        return None
+    return LMStudioProvider(settings, settings.lmstudio_simple_model)
 
 
 @router.get("/settings/llm", response_model=LLMSettingsResponse)
@@ -443,7 +450,10 @@ async def add_invoice_service(
         linked_event_ids = select(DocumentLink.medical_event_id).where(DocumentLink.medical_event_id.is_not(None))
         db.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(event_ids), ~MedicalEvent.id.in_(linked_event_ids)))
     try:
-        await cluster_document_with_relation_model(db, document, relation_provider(await runtime_settings(settings)))
+        effective_settings = await runtime_settings(settings)
+        await cluster_document_with_relation_model(
+            db, document, relation_provider(effective_settings), relation_screening_provider(effective_settings),
+        )
     except LLMUnavailable as error:
         raise HTTPException(status_code=503, detail="The primary relationship model is unavailable.") from error
     record_audit(db, "invoice.service_added_manually", "Document", document.id, {"service": payload.service_description.strip()})
@@ -715,11 +725,15 @@ async def rebuild_associations(db: Session = Depends(get_db), settings: Settings
     """Rebuild relationships from persisted structured data without reprocessing documents."""
     effective_settings = await runtime_settings(settings)
     provider = relation_provider(effective_settings)
+    screening_provider = relation_screening_provider(effective_settings)
     try:
         available_models = await provider.models()
     except LLMUnavailable as error:
         raise HTTPException(status_code=503, detail="The primary relationship model is unavailable.") from error
-    if provider.model_id not in available_models:
+    required_models = {provider.model_id}
+    if screening_provider is not None:
+        required_models.add(screening_provider.model_id)
+    if not required_models.issubset(available_models):
         raise HTTPException(status_code=503, detail="The configured primary relationship model is not loaded in LM Studio.")
     event_ids = list(db.scalars(select(MedicalEvent.id)))
     structured_document_ids = select(Prescription.document_id).union(select(ExpenseDocument.document_id))
@@ -732,9 +746,7 @@ async def rebuild_associations(db: Session = Depends(get_db), settings: Settings
     db.execute(delete(ReviewTask).where(ReviewTask.type == ReviewType.LINK_AMBIGUOUS))
     db.flush()
     try:
-        for document in documents:
-            if document.document_type == DocumentType.INVOICE:
-                await cluster_document_with_relation_model(db, document, provider)
+        await rebuild_relationships_with_model_routing(db, provider, screening_provider)
     except LLMUnavailable as error:
         db.rollback()
         raise HTTPException(status_code=503, detail="The primary relationship model became unavailable during rebuilding.") from error
@@ -971,7 +983,10 @@ async def complete_document_review_manually(task_id: UUID, payload: ManualDocume
     if patient.conflict:
         db.add(ReviewTask(type=ReviewType.PATIENT_CONFLICT, entity_type="Document", entity_id=document.id, context={"resolution_evidence": patient.evidence, "source": "manual_completion"}))
     try:
-        await cluster_document_with_relation_model(db, document, relation_provider(await runtime_settings(settings)))
+        effective_settings = await runtime_settings(settings)
+        await cluster_document_with_relation_model(
+            db, document, relation_provider(effective_settings), relation_screening_provider(effective_settings),
+        )
     except LLMUnavailable as error:
         raise HTTPException(status_code=503, detail="The primary relationship model is unavailable.") from error
     task.status = "RESOLVED"

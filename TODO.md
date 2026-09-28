@@ -150,6 +150,9 @@
 - [x] Evidence-weighted confidence for proposals with missing invoice lines
 - [x] Primary LLM relationship decisions with persistent operator feedback
 - [x] Missing-original detection before document analysis
+- [x] Batched primary-LLM reassessment of legacy relationship feedback
+- [x] Small-model semantic screening before primary-model escalation
+- [x] One small-model relationship inventory per patient rebuild
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline
