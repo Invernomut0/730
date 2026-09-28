@@ -33,6 +33,11 @@ pairs become reviewable proposals; only `UNCERTAIN` pairs are sent to the
 primary large model with compact clinical context and no repeated raw extraction
 payload. Neither model can auto-confirm an association.
 
+For invoices whose billing text is generic or under-itemized—such as therapeutic
+injections—the small model is intentionally recall-oriented: it sends up to
+three clinically plausible `UNCERTAIN` candidates per invoice to the large
+model. Missing invoice detail is not treated as evidence against a relation.
+
 If an original file is missing from local storage, analysis and reanalysis do not
 queue a failing worker job. The document moves to a visible review with reason
 `original_file_missing`; restore the original before retrying.

@@ -153,6 +153,7 @@
 - [x] Batched primary-LLM reassessment of legacy relationship feedback
 - [x] Small-model semantic screening before primary-model escalation
 - [x] One small-model relationship inventory per patient rebuild
+- [x] High-recall escalation for under-itemized invoices
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

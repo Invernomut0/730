@@ -260,10 +260,14 @@ async def rebuild_relationships_with_model_routing(
         selector = screening_provider or primary_provider
         selector_schema = _inventory_schema()
         inventory_prompt = (
-            "You are a fast clinical association selector. Consider each possible prescription/invoice pair for one "
-            "patient from the complete structured document inventories. Return only pairs that are RELATED or "
-            "UNCERTAIN; omit clearly unrelated pairs. Never infer a relation from dates, patient, generic wording, "
-            "or provider alone. Legacy rule rejections are not vetoes.\n"
+            "You are a high-recall clinical association selector. Consider each possible prescription/invoice pair "
+            "for one patient from the complete structured document inventories. For every invoice, return all clearly "
+            "RELATED pairs plus up to three strongest clinically plausible UNCERTAIN candidates. A generic or "
+            "under-itemized invoice, such as an infusion or therapeutic injection, must yield UNCERTAIN candidates "
+            "when the patient has nearby prescriptions with a compatible clinical course, diagnosis, requested test, "
+            "or medication; missing invoice line detail is uncertainty, not evidence against a relationship. Omit a "
+            "pair only when its clinical context is clearly unrelated. Never label RELATED from date, patient, generic "
+            "wording, or provider alone. Legacy rule rejections are not vetoes.\n"
             f"Prescriptions: {json.dumps([{'document_id': str(item.document_id), 'data': _relation_context(item, 'prescription', include_extraction=True)} for item in patient_prescriptions], ensure_ascii=False)}\n"
             f"Invoices: {json.dumps([{'document_id': str(item.document_id), 'data': _relation_context(item, 'invoice', include_extraction=True)} for item in patient_invoices], ensure_ascii=False)}\n"
             f"Previous operator decisions: {json.dumps(_feedback_examples(feedback, documents, patient_id), ensure_ascii=False)}"

@@ -40,6 +40,11 @@ prescription and invoice JSON inventory once and returns only `RELATED` or
 escalated to the primary large model, which receives concise clinical fields
 rather than repeated raw extraction JSON.
 
+The selector is intentionally recall-oriented for generic or under-itemized
+invoices. It returns all clear matches and up to three clinically plausible
+`UNCERTAIN` candidates for each invoice; the primary model remains responsible
+for filtering uncertainty before a proposal is created.
+
 ## Relations
 
 The current automatic relation types are `LLM_PROPOSED` and `USER_CONFIRMED`.
