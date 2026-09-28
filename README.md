@@ -21,6 +21,10 @@ links, without deleting or rerunning its extraction.
 
 The configured primary local relationship model decides every prescription–invoice pair from the full structured clinical context. There are no automatic lexical scores, date windows, or threshold rules that can create an event. It returns `RELATED`, `NOT_RELATED`, or `UNCERTAIN`; only `RELATED` creates an operator-reviewable proposal. A user approval or rejection is stored locally: it is authoritative for that exact pair and recent same-patient corrections, including the rejection reason, are supplied to the model as private few-shot guidance on later decisions and rebuilds.
 
+If an original file is missing from local storage, analysis and reanalysis do not
+queue a failing worker job. The document moves to a visible review with reason
+`original_file_missing`; restore the original before retrying.
+
 When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
 **Avvia analisi documenti** above the Inbox. It queues each non-duplicate
 stored document, or a document visibly stuck in `EXTRACTING`, for the local

@@ -313,23 +313,36 @@ async def analyze_stored_documents(db: Session = Depends(get_db), settings: Sett
             )
         )
     )
+    queueable_documents: list[Document] = []
     for document in documents:
+        if not (settings.storage_root / document.storage_key).is_file():
+            document.state = DocumentState.REVIEW_REQUIRED
+            document.analysis_started_at = None
+            db.add(ReviewTask(
+                type=ReviewType.DOCUMENT_TYPE_UNCERTAIN,
+                entity_type="Document",
+                entity_id=document.id,
+                context={"reason": "original_file_missing", "storage_key": document.storage_key},
+            ))
+            record_audit(db, "document.analysis_unavailable", "Document", document.id, {"reason": "original_file_missing"})
+            continue
         document.state = DocumentState.EXTRACTING
         document.analysis_started_at = datetime.now(UTC)
         record_audit(db, "document.analysis_queued", "Document", document.id)
+        queueable_documents.append(document)
     db.commit()
     try:
         redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-        for document in documents:
+        for document in queueable_documents:
             await redis.enqueue_job("process_document", str(document.id))
         await redis.aclose()
     except OSError as error:
-        for document in documents:
+        for document in queueable_documents:
             document.state = DocumentState.STORED
             document.analysis_started_at = None
         db.commit()
         raise HTTPException(status_code=503, detail="The processing queue is unavailable. No document was started.") from error
-    return DocumentAnalysisResponse(documents_queued=len(documents))
+    return DocumentAnalysisResponse(documents_queued=len(queueable_documents))
 
 
 @router.post("/documents/{document_id}/reanalyze", response_model=DocumentAnalysisResponse)
@@ -340,6 +353,18 @@ async def reanalyze_document(document_id: UUID, db: Session = Depends(get_db), s
         raise HTTPException(status_code=404, detail="Document not found.")
     if document.duplicate_of_id is not None:
         raise HTTPException(status_code=409, detail="Duplicate documents reuse the original document analysis.")
+    if not (settings.storage_root / document.storage_key).is_file():
+        document.state = DocumentState.REVIEW_REQUIRED
+        document.analysis_started_at = None
+        db.add(ReviewTask(
+            type=ReviewType.DOCUMENT_TYPE_UNCERTAIN,
+            entity_type="Document",
+            entity_id=document.id,
+            context={"reason": "original_file_missing", "storage_key": document.storage_key},
+        ))
+        record_audit(db, "document.analysis_unavailable", "Document", document.id, {"reason": "original_file_missing"})
+        db.commit()
+        raise HTTPException(status_code=409, detail="The original file is missing. Restore it before reanalysis.")
     active_states = {DocumentState.EXTRACTING, DocumentState.OCR, DocumentState.CLASSIFYING, DocumentState.STRUCTURING}
     if document.state in active_states:
         raise HTTPException(status_code=409, detail="Document analysis is already in progress.")

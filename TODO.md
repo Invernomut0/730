@@ -149,6 +149,7 @@
 - [x] Patient-date proposals when invoice itemized evidence is absent
 - [x] Evidence-weighted confidence for proposals with missing invoice lines
 - [x] Primary LLM relationship decisions with persistent operator feedback
+- [x] Missing-original detection before document analysis
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

@@ -37,6 +37,19 @@ from app.services.runtime_settings import jobs_paused, runtime_settings
 _stable_files = StableFileTracker()
 
 
+def _mark_original_missing(db: Session, document: Document) -> None:
+    """Move an unrecoverable document to review without losing its metadata."""
+    document.state = DocumentState.REVIEW_REQUIRED
+    document.analysis_started_at = None
+    db.add(ReviewTask(
+        type=ReviewType.DOCUMENT_TYPE_UNCERTAIN,
+        entity_type="Document",
+        entity_id=document.id,
+        context={"reason": "original_file_missing", "storage_key": document.storage_key},
+    ))
+    db.commit()
+
+
 async def _structure_with_configured_models(
     db: Session,
     document: Document,
@@ -67,10 +80,13 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             document.state = DocumentState.COMPLETE
             db.commit()
             return
+        path = settings.storage_root / document.storage_key
+        if not path.is_file():
+            _mark_original_missing(db, document)
+            return
         document.state = DocumentState.EXTRACTING
         document.analysis_started_at = datetime.now(UTC)
         db.commit()
-        path = settings.storage_root / document.storage_key
         generate_thumbnail(path, document.mime_type, thumbnail_path(settings.storage_root, document.sha256))
         pages = []
         if document.mime_type == "application/pdf":
@@ -138,6 +154,12 @@ async def process_document(_context: dict[str, object], document_id: str) -> Non
             db.add(ReviewTask(type=ReviewType.DOCUMENT_TYPE_UNCERTAIN, entity_type="Document", entity_id=document.id, context={"reason": "text_extraction_failed"}))
             db.commit()
         raise
+    except FileNotFoundError:
+        db.rollback()
+        document = db.get(Document, UUID(document_id))
+        if document is not None:
+            _mark_original_missing(db, document)
+        return
     except asyncio.CancelledError:
         db.rollback()
         document = db.get(Document, UUID(document_id))

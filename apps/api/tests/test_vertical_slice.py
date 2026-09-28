@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Any, ClassVar
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
+from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.entities import (
@@ -23,9 +25,12 @@ from app.models.entities import (
     HouseholdMember,
     MedicalEvent,
     Prescription,
+    ReviewTask,
+    ReviewType,
 )
 from app.services.eventing import cluster_document_with_relation_model
 from app.services.structuring import structure_document
+from app.workers.jobs import process_document
 
 
 class SyntheticLLMProvider:
@@ -172,6 +177,7 @@ async def test_lab_prescription_and_infusion_invoice_are_rejected_by_primary_mod
 async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: pytest.MonkeyPatch) -> None:
     database = SessionLocal()
     household_id = member_id = prescription_document_id = invoice_document_id = None
+    storage_keys: list[str] = []
     try:
         patient_suffix = uuid4().hex[:12]
         household = Household(name=f"Synthetic family {uuid4()}")
@@ -187,6 +193,12 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.add_all([prescription_document, invoice_document])
         database.commit()
         prescription_document_id, invoice_document_id = prescription_document.id, invoice_document.id
+        storage_keys = [prescription_document.storage_key, invoice_document.storage_key]
+        storage_root = get_settings().storage_root
+        for document in (prescription_document, invoice_document):
+            original = storage_root / document.storage_key
+            original.parent.mkdir(parents=True, exist_ok=True)
+            original.write_bytes(b"%PDF-1.4\nsynthetic test document\n")
 
         provider = SyntheticLLMProvider(f"Synthetic {patient_suffix}")
         await structure_document(database, prescription_document, "Synthetic prescription", provider)
@@ -332,9 +344,54 @@ async def test_prescription_invoice_vertical_slice_creates_event(monkeypatch: py
         database.execute(delete(Prescription).where(Prescription.document_id == prescription_document_id))
         database.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(event_ids)))
         database.execute(delete(Document).where(Document.id.in_(document_ids)))
+        for storage_key in storage_keys:
+            (get_settings().storage_root / storage_key).unlink(missing_ok=True)
         database.execute(delete(HouseholdMember).where(HouseholdMember.id == member_id))
         database.execute(delete(Household).where(Household.id == household_id))
         database.commit()
+        database.close()
+
+
+@pytest.mark.asyncio
+async def test_worker_marks_missing_original_for_review(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    database = SessionLocal()
+    document_id = None
+    try:
+        document = Document(
+            original_filename="missing-original.pdf",
+            mime_type="application/pdf",
+            byte_size=1,
+            sha256=uuid4().hex * 2,
+            storage_key=f"originals/{uuid4()}.pdf",
+        )
+        database.add(document)
+        database.commit()
+        document_id = document.id
+
+        async def test_settings(_settings: Settings) -> Settings:
+            return Settings(storage_root=tmp_path)
+
+        async def jobs_active(_settings: Settings) -> bool:
+            return False
+
+        monkeypatch.setattr("app.workers.jobs.runtime_settings", test_settings)
+        monkeypatch.setattr("app.workers.jobs.jobs_paused", jobs_active)
+        await process_document({}, str(document.id))
+
+        database.refresh(document)
+        assert document.state == DocumentState.REVIEW_REQUIRED
+        assert document.analysis_started_at is None
+        review = database.scalar(select(ReviewTask).where(
+            ReviewTask.entity_id == document.id,
+            ReviewTask.type == ReviewType.DOCUMENT_TYPE_UNCERTAIN,
+        ))
+        assert review is not None
+        assert review.context["reason"] == "original_file_missing"
+    finally:
+        if document_id:
+            database.execute(delete(ReviewTask).where(ReviewTask.entity_id == document_id))
+            database.execute(delete(Document).where(Document.id == document_id))
+            database.commit()
         database.close()
 
 
