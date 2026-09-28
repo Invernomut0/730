@@ -146,6 +146,8 @@
 - [x] Relationship rebuild from persisted structured records with explicit outcome
 - [x] Same-day patient relation proposals for incomplete invoice service evidence
 - [x] Manual invoice-service correction with targeted relation recalculation
+- [x] Patient-date proposals when invoice itemized evidence is absent
+- [x] Evidence-weighted confidence for proposals with missing invoice lines
 - [ ] synthetic fixture generator
 - [ ] E2E tests
 - [ ] performance baseline

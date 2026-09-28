@@ -20,6 +20,12 @@ auto-confirms this weaker association; the operator must approve or reject it
 from the workspace. The invoice viewer also provides **Aggiungi prestazione
 fattura** to append operator-verified service evidence and immediately recalculate
 only that invoice's links, without deleting or rerunning its extraction.
+When a prescription lists medicines or laboratory tests but the compatible
+invoice has no corresponding billed-item lines at all, the same review proposal
+is retained with `invoice_item_evidence_missing`; absent invoice detail is not
+misrepresented as a clinical contradiction. Its confidence retains the verified
+patient/date evidence ($0.45$); a populated but mismatching billed-item list
+remains blocked at zero confidence.
 
 When imported or rebuilt documents remain in `STORED` / `UNKNOWN`, use
 **Avvia analisi documenti** above the Inbox. It queues each non-duplicate

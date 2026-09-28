@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, ClassVar
 from uuid import uuid4
 
@@ -61,6 +62,88 @@ class SyntheticLLMProvider:
             "services": [{"description": {"value": "visita ortopedica", "page": 1, "source_text": "visita ortopedica", "confidence": 1.0}, "amount": "180.00"}],
             "total_amount": "180.00",
         }
+
+
+def test_missing_invoice_item_lines_create_a_proposed_event() -> None:
+    database = SessionLocal()
+    household_id = member_id = prescription_document_id = invoice_document_id = None
+    try:
+        household = Household(name=f"Proposal family {uuid4()}")
+        database.add(household)
+        database.flush()
+        household_id = household.id
+        member = HouseholdMember(household_id=household.id, first_name="Proposal", last_name=uuid4().hex[:12])
+        database.add(member)
+        database.flush()
+        member_id = member.id
+        prescription_document = Document(
+            original_filename="blood-tests-prescription.pdf",
+            mime_type="application/pdf",
+            byte_size=1,
+            sha256=uuid4().hex * 2,
+            storage_key=f"originals/{uuid4()}.pdf",
+            document_type=DocumentType.PRESCRIPTION,
+        )
+        invoice_document = Document(
+            original_filename="infusion-invoice.pdf",
+            mime_type="application/pdf",
+            byte_size=1,
+            sha256=uuid4().hex * 2,
+            storage_key=f"originals/{uuid4()}.pdf",
+            document_type=DocumentType.INVOICE,
+        )
+        database.add_all([prescription_document, invoice_document])
+        database.flush()
+        prescription_document_id, invoice_document_id = prescription_document.id, invoice_document.id
+        database.add(Prescription(
+            document_id=prescription_document.id,
+            patient_id=member.id,
+            prescription_date=date(2026, 2, 11),
+            extraction={"requested_services": [], "requested_lab_tests": [{"value": "Ferritina"}], "prescribed_drugs": []},
+        ))
+        database.add(ExpenseDocument(
+            document_id=invoice_document.id,
+            patient_id=member.id,
+            invoice_date=date(2026, 3, 13),
+            extraction={"services": [{"description": {"value": "Infusione terapeutica"}}], "billed_lab_tests": [], "billed_drugs": []},
+        ))
+        database.commit()
+
+        cluster_document(database, invoice_document, auto_confirm_threshold=0.95, suggest_threshold=0.75)
+        database.commit()
+
+        link = database.scalar(select(DocumentLink).where(
+            DocumentLink.source_document_id == prescription_document.id,
+            DocumentLink.target_document_id == invoice_document.id,
+        ))
+        assert link is not None
+        assert link.relation_type == "PATIENT_DATE_REVIEW"
+        assert "invoice_item_evidence_missing" in link.conflicts
+        event = database.get(MedicalEvent, link.medical_event_id)
+        assert event is not None
+        assert event.status.value == "PROPOSED"
+        assert event.title == "Ferritina"
+    finally:
+        document_ids = [item for item in (prescription_document_id, invoice_document_id) if item]
+        if document_ids:
+            event_ids = list(database.scalars(select(DocumentLink.medical_event_id).where(
+                DocumentLink.source_document_id.in_(document_ids) | DocumentLink.target_document_id.in_(document_ids),
+                DocumentLink.medical_event_id.is_not(None),
+            )))
+            database.execute(delete(DocumentLink).where(
+                DocumentLink.source_document_id.in_(document_ids) | DocumentLink.target_document_id.in_(document_ids)
+            ))
+            database.execute(delete(Prescription).where(Prescription.document_id == prescription_document_id))
+            database.execute(delete(ExpenseDocument).where(ExpenseDocument.document_id == invoice_document_id))
+            if event_ids:
+                database.execute(delete(MedicalEvent).where(MedicalEvent.id.in_(event_ids)))
+            database.execute(delete(Document).where(Document.id.in_(document_ids)))
+        if member_id:
+            database.execute(delete(HouseholdMember).where(HouseholdMember.id == member_id))
+        if household_id:
+            database.execute(delete(Household).where(Household.id == household_id))
+        database.commit()
+        database.close()
 
 
 @pytest.mark.asyncio

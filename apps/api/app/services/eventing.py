@@ -51,8 +51,22 @@ def _link_candidate(source: Prescription, target: ExpenseDocument):
 
 def medical_event_title(prescription: Prescription, invoice: ExpenseDocument) -> str:
     """Create a concise, human-readable event title from extracted clinical services."""
-    services = _services(prescription.extraction, "requested_services") or _services(invoice.extraction, "services")
+    services = (
+        _services(prescription.extraction, "requested_services")
+        or _evidence_values(prescription.extraction, "requested_lab_tests")
+        or _evidence_values(prescription.extraction, "prescribed_drugs")
+        or _services(invoice.extraction, "services")
+    )
     return services[0][:220] if services else "Prestazione sanitaria collegata"
+
+
+def _invoice_lacks_requested_item_evidence(source: Prescription, target: ExpenseDocument) -> bool:
+    """Recognize absent invoice detail without treating it as contradictory clinical evidence."""
+    prescribed_drugs = _evidence_values(source.extraction, "prescribed_drugs")
+    requested_lab_tests = _evidence_values(source.extraction, "requested_lab_tests")
+    billed_drugs = _evidence_values(target.extraction, "billed_drugs")
+    billed_lab_tests = _evidence_values(target.extraction, "billed_lab_tests")
+    return (bool(prescribed_drugs) and not billed_drugs) or (bool(requested_lab_tests) and not billed_lab_tests)
 
 
 def refresh_legacy_event_title(db: Session, event: MedicalEvent) -> str:
@@ -87,7 +101,11 @@ def cluster_document(db: Session, document: Document, auto_confirm_threshold: fl
         if exists:
             continue
         candidate = _link_candidate(source, target)
-        if candidate.conflicts:
+        missing_invoice_item_evidence = _invoice_lacks_requested_item_evidence(source, target)
+        can_propose_for_missing_invoice_items = (
+            is_patient_date_review_candidate(candidate) and missing_invoice_item_evidence
+        )
+        if candidate.conflicts and not can_propose_for_missing_invoice_items:
             continue
         if candidate.score >= auto_confirm_threshold:
             event = MedicalEvent(household_member_id=source.patient_id, title=medical_event_title(source, target), start_date=source.prescription_date, end_date=target.invoice_date, confidence=candidate.score)
@@ -96,7 +114,7 @@ def cluster_document(db: Session, document: Document, auto_confirm_threshold: fl
             db.add(DocumentLink(source_document_id=source.document_id, target_document_id=target.document_id, medical_event_id=event.id, relation_type="RELATED_TO", score=candidate.score, evidence=candidate.evidence, conflicts=candidate.conflicts))
         elif candidate.score >= suggest_threshold:
             db.add(ReviewTask(type=ReviewType.LINK_AMBIGUOUS, entity_type="Document", entity_id=document.id, context={"candidate_document_id": str(target.document_id if prescription else source.document_id), "score": candidate.score, "evidence": candidate.evidence, "conflicts": candidate.conflicts}))
-        elif is_patient_date_review_candidate(candidate):
+        elif can_propose_for_missing_invoice_items:
             event = MedicalEvent(
                 household_member_id=source.patient_id,
                 title=medical_event_title(source, target),
@@ -114,7 +132,7 @@ def cluster_document(db: Session, document: Document, auto_confirm_threshold: fl
                 relation_type="PATIENT_DATE_REVIEW",
                 score=candidate.score,
                 evidence=[*candidate.evidence, "patient_date_match_requires_review"],
-                conflicts=["invoice_service_not_matched"],
+                conflicts=[*candidate.conflicts, "invoice_item_evidence_missing"],
             ))
 
 

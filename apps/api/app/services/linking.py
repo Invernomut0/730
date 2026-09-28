@@ -16,8 +16,12 @@ class LinkCandidate:
 
 
 def is_patient_date_review_candidate(candidate: LinkCandidate) -> bool:
-    """Keep a patient/date pair visible when clinical service evidence cannot confirm it."""
-    return not candidate.conflicts and "same_patient" in candidate.evidence and any(
+    """Keep a patient/date pair visible when invoice clinical evidence is incomplete."""
+    allowed_missing_evidence = {
+        "prescribed_drugs_missing_from_invoice",
+        "requested_lab_tests_missing_from_invoice",
+    }
+    return set(candidate.conflicts).issubset(allowed_missing_evidence) and "same_patient" in candidate.evidence and any(
         evidence.startswith("invoice_") and evidence.endswith("_days_after_prescription")
         for evidence in candidate.evidence
     )
@@ -149,12 +153,20 @@ def score_prescription_invoice(
     detailed_match = False
     if prescribed_drugs:
         if not _items_match(prescribed_drugs, billed_drugs):
-            return LinkCandidate(0.0, evidence, ["prescribed_drugs_missing_from_invoice"])
+            return LinkCandidate(
+                score if not invoice_drugs else 0.0,
+                evidence,
+                ["prescribed_drugs_missing_from_invoice"],
+            )
         detailed_match = True
         evidence.append("all_prescribed_drugs_match_invoice")
     if requested_lab_tests:
         if not _items_match(requested_lab_tests, billed_lab_tests):
-            return LinkCandidate(0.0, evidence, ["requested_lab_tests_missing_from_invoice"])
+            return LinkCandidate(
+                score if not invoice_lab_tests else 0.0,
+                evidence,
+                ["requested_lab_tests_missing_from_invoice"],
+            )
         detailed_match = True
         evidence.append("all_requested_lab_tests_match_invoice")
 

@@ -134,3 +134,24 @@ def test_same_patient_and_date_window_without_service_match_creates_review_candi
 
     assert 0.44 < candidate.score < 0.46
     assert is_patient_date_review_candidate(candidate)
+
+
+def test_missing_billed_laboratory_lines_remains_a_patient_date_review_candidate() -> None:
+    patient = uuid4()
+
+    candidate = score_prescription_invoice(
+        patient,
+        patient,
+        date(2026, 2, 11),
+        date(2026, 3, 13),
+        [],
+        ["infusione terapeutica"],
+        [],
+        ["Ferritina", "Emocromo"],
+        [],
+        [],
+    )
+
+    assert candidate.conflicts == ["requested_lab_tests_missing_from_invoice"]
+    assert 0.44 < candidate.score < 0.46
+    assert is_patient_date_review_candidate(candidate)
